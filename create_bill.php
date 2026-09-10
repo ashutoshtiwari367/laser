@@ -238,12 +238,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
                         <table class="table" id="itemsTable">
                             <thead>
                                 <tr>
-                                    <th style="width: 25%;">Product / Service Name</th>
-                                    <th style="width: 10%;">HSN/SAC</th>
-                                    <th style="width: 8%;">Qty</th>
-                                    <th style="width: 9%;">Unit</th>
-                                    <th style="width: 11%;">Price (₹)</th>
-                                    <th style="width: 14%;">GST Rate</th>
+                                    <th style="width: 22%;">Product / Service Name</th>
+                                    <th style="width: 9%;">HSN/SAC</th>
+                                    <th style="width: 7%;">Qty</th>
+                                    <th style="width: 8%;">Unit</th>
+                                    <th style="width: 10%;">Price (₹)</th>
+                                    <th style="width: 8%;">CGST %</th>
+                                    <th style="width: 8%;">SGST %</th>
                                     <th style="width: 11%;">Taxable (₹)</th>
                                     <th style="width: 12%;">Total Incl. GST</th>
                                     <th style="width: 5%; text-align: center;">Action</th>
@@ -267,21 +268,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
                                         </select>
                                     </td>
                                     <td><input type="number" name="price[]" class="form-control price" step="0.01" min="0" value="0" required></td>
-                                    <td>
-                                        <select class="form-control gst-select" onchange="updateRowGST(this)">
-                                            <option value="5" selected>5% (2.5% + 2.5%)</option>
-                                            <option value="12">12% (6% + 6%)</option>
-                                            <option value="18">18% (9% + 9%)</option>
-                                            <option value="28">28% (14% + 14%)</option>
-                                            <option value="0">0% (Exempt)</option>
-                                            <option value="custom">Custom Rate</option>
-                                        </select>
-                                        <div class="custom-gst-wrap" style="display:none; margin-top:4px;">
-                                            <input type="number" class="form-control gst-custom" step="0.01" min="0" max="100" placeholder="GST %" oninput="updateRowGSTCustom(this)">
-                                        </div>
-                                        <input type="hidden" name="cgst_rate_item[]" class="cgst-rate" value="2.5">
-                                        <input type="hidden" name="sgst_rate_item[]" class="sgst-rate" value="2.5">
-                                    </td>
+                                    <td><input type="number" name="cgst_rate_item[]" class="form-control cgst-rate" step="0.01" min="0" max="100" value="2.5" placeholder="CGST %" style="text-align:center; font-weight:500;"></td>
+                                    <td><input type="number" name="sgst_rate_item[]" class="form-control sgst-rate" step="0.01" min="0" max="100" value="2.5" placeholder="SGST %" style="text-align:center; font-weight:500;"></td>
                                     <td>
                                         <input type="text" class="form-control taxable" value="0.00" readonly style="background:#f8fafc; font-weight:500;">
                                         <small class="tax-info-badge" style="display:block; font-size:11px; color:#0284c7; margin-top:2px;">GST: ₹0.00</small>
@@ -292,7 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
                             </tbody>
                             <tfoot>
                                 <tr style="background:#f8fafc;">
-                                    <td colspan="6" class="text-right" style="padding:14px; font-weight:600;">Total Taxable Subtotal:</td>
+                                    <td colspan="7" class="text-right" style="padding:14px; font-weight:600;">Total Taxable Subtotal:</td>
                                     <td colspan="3" style="padding:14px;">
                                         <input type="text" id="subtotal_display" class="form-control" readonly style="font-weight: 700; font-size: 15px; color:#0f172a; width: auto; display: inline-block;">
                                     </td>
@@ -416,7 +404,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
         });
         
         function attachRowListeners() {
-            document.querySelectorAll('.quantity, .price').forEach(input => {
+            document.querySelectorAll('.quantity, .price, .cgst-rate, .sgst-rate').forEach(input => {
                 input.removeEventListener('input', onRowInputChange);
                 input.addEventListener('input', onRowInputChange);
             });
@@ -424,34 +412,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
         
         function onRowInputChange(e) {
             const row = e.target.closest('tr');
-            calculateRow(row);
-        }
-        
-        function updateRowGST(selectElem) {
-            const row = selectElem.closest('tr');
-            const customWrap = row.querySelector('.custom-gst-wrap');
-            const val = selectElem.value;
-            
-            if (val === 'custom') {
-                customWrap.style.display = 'block';
-                const customVal = parseFloat(row.querySelector('.gst-custom').value) || 0;
-                setRowGSTValues(row, customVal);
-            } else {
-                customWrap.style.display = 'none';
-                setRowGSTValues(row, parseFloat(val));
-            }
-        }
-        
-        function updateRowGSTCustom(inputElem) {
-            const row = inputElem.closest('tr');
-            const val = parseFloat(inputElem.value) || 0;
-            setRowGSTValues(row, val);
-        }
-        
-        function setRowGSTValues(row, totalGstRate) {
-            const halfRate = totalGstRate / 2;
-            row.querySelector('.cgst-rate').value = halfRate;
-            row.querySelector('.sgst-rate').value = halfRate;
             calculateRow(row);
         }
         
@@ -531,21 +491,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
                     </select>
                 </td>
                 <td><input type="number" name="price[]" class="form-control price" step="0.01" min="0" value="0" required></td>
-                <td>
-                    <select class="form-control gst-select" onchange="updateRowGST(this)">
-                        <option value="5" selected>5% (2.5% + 2.5%)</option>
-                        <option value="12">12% (6% + 6%)</option>
-                        <option value="18">18% (9% + 9%)</option>
-                        <option value="28">28% (14% + 14%)</option>
-                        <option value="0">0% (Exempt)</option>
-                        <option value="custom">Custom Rate</option>
-                    </select>
-                    <div class="custom-gst-wrap" style="display:none; margin-top:4px;">
-                        <input type="number" class="form-control gst-custom" step="0.01" min="0" max="100" placeholder="GST %" oninput="updateRowGSTCustom(this)">
-                    </div>
-                    <input type="hidden" name="cgst_rate_item[]" class="cgst-rate" value="2.5">
-                    <input type="hidden" name="sgst_rate_item[]" class="sgst-rate" value="2.5">
-                </td>
+                <td><input type="number" name="cgst_rate_item[]" class="form-control cgst-rate" step="0.01" min="0" max="100" value="2.5" placeholder="CGST %" style="text-align:center; font-weight:500;"></td>
+                <td><input type="number" name="sgst_rate_item[]" class="form-control sgst-rate" step="0.01" min="0" max="100" value="2.5" placeholder="SGST %" style="text-align:center; font-weight:500;"></td>
                 <td>
                     <input type="text" class="form-control taxable" value="0.00" readonly style="background:#f8fafc; font-weight:500;">
                     <small class="tax-info-badge" style="display:block; font-size:11px; color:#0284c7; margin-top:2px;">GST: ₹0.00</small>
@@ -556,7 +503,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
             tbody.appendChild(newRow);
             attachRowListeners();
             calculateRow(newRow);
-        }
+        }`
         
         function removeItem(btn) {
             const tbody = document.getElementById('itemsBody');
