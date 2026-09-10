@@ -503,7 +503,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
             tbody.appendChild(newRow);
             attachRowListeners();
             calculateRow(newRow);
-        }`
+        }
         
         function removeItem(btn) {
             const tbody = document.getElementById('itemsBody');
