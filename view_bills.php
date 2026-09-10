@@ -2,7 +2,7 @@
 // view_bills.php
 require_once 'config.php';
 checkLogin();
-
+// vf
 $conn = getDBConnection();
 
 // Filter parameters
