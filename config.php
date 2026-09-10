@@ -4,10 +4,21 @@
 session_start();
 
 // Database configuration
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'billing_system');
+$isLive = isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'localhost') === false && strpos($_SERVER['HTTP_HOST'], '127.0.0.1') === false;
+
+if ($isLive) {
+    // Hostinger Live Database Configuration (Update with your Hostinger DB details)
+    define('DB_HOST', 'localhost');
+    define('DB_USER', 'u123456789_user'); // Hostinger DB Username
+    define('DB_PASS', 'Your_Password');   // Hostinger DB Password
+    define('DB_NAME', 'u123456789_billing'); // Hostinger DB Name
+} else {
+    // Local XAMPP Configuration
+    define('DB_HOST', 'localhost');
+    define('DB_USER', 'root');
+    define('DB_PASS', '');
+    define('DB_NAME', 'billing_system');
+}
 
 // Create database connection
 function getDBConnection() {

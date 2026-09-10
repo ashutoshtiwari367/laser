@@ -1,162 +1,114 @@
 <?php
-// update_database.php - Add tax columns to existing database
-// Run this file ONCE to update your database
+// update_database.php - Complete Database Schema Migration & Installer
+require_once 'config.php';
 
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
-echo "<h2>Database Update - Adding Tax Columns</h2>";
+echo "<h2>Database Setup & Schema Migration</h2>";
 echo "<hr>";
 
-// Database configuration
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'billing_system');
-
-mysqli_report(MYSQLI_REPORT_OFF);
-$conn = @new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-if (!$conn || $conn->connect_error) {
-    $conn = @new mysqli('127.0.0.1', DB_USER, DB_PASS, DB_NAME);
-}
-
-if (!$conn || $conn->connect_error) {
-    die("<p style='color: red;'>❌ Connection failed: " . ($conn ? $conn->connect_error : 'Unable to connect') . "</p>");
-}
+$conn = getDBConnection();
 
 echo "<p style='color: green;'>✅ Connected to database successfully</p>";
 
-// Check if columns already exist
-$checkQuery = "SHOW COLUMNS FROM bills LIKE 'subtotal'";
-$result = $conn->query($checkQuery);
+// 1. Create users table
+$tableUsers = "CREATE TABLE IF NOT EXISTS `users` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `username` VARCHAR(50) NOT NULL UNIQUE,
+  `password` VARCHAR(255) NOT NULL,
+  `full_name` VARCHAR(100) NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
 
-if ($result->num_rows > 0) {
-    echo "<p style='color: orange;'>⚠️ Tax columns already exist in 'bills' table.</p>";
-} else {
-    echo "<p style='color: blue;'>📝 Adding tax columns to 'bills' table...</p>";
+if ($conn->query($tableUsers)) {
+    echo "<p style='color: green;'>✅ Table 'users' verified</p>";
     
-    // Add columns one by one
-    $queries = [
-        "ALTER TABLE bills ADD COLUMN customer_gstin VARCHAR(20) AFTER customer_phone",
-        "ALTER TABLE bills ADD COLUMN shipping_address TEXT AFTER customer_address",
-        "ALTER TABLE bills ADD COLUMN is_shipping_same TINYINT(1) DEFAULT 1 AFTER shipping_address",
-        "ALTER TABLE bills ADD COLUMN subtotal DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER is_shipping_same",
-        "ALTER TABLE bills ADD COLUMN cgst_rate DECIMAL(5,2) DEFAULT 2.50 AFTER subtotal",
-        "ALTER TABLE bills ADD COLUMN cgst_amount DECIMAL(10,2) DEFAULT 0.00 AFTER cgst_rate",
-        "ALTER TABLE bills ADD COLUMN sgst_rate DECIMAL(5,2) DEFAULT 2.50 AFTER cgst_amount",
-        "ALTER TABLE bills ADD COLUMN sgst_amount DECIMAL(10,2) DEFAULT 0.00 AFTER sgst_rate"
-    ];
-    
-    $success = 0;
-    foreach ($queries as $query) {
-        if ($conn->query($query)) {
-            $success++;
-        } else {
-            // Check if column already exists error
-            if (strpos($conn->error, 'Duplicate column') === false) {
-                echo "<p style='color: red;'>❌ Error: " . $conn->error . "</p>";
-            }
-        }
-    }
-    
-    if ($success >= 5) {
-        echo "<p style='color: green;'>✅ Successfully added columns to 'bills' table</p>";
-        
-        // Update existing bills
-        $updateQuery = "UPDATE bills SET subtotal = grand_total WHERE subtotal = 0";
-        if ($conn->query($updateQuery)) {
-            $affected = $conn->affected_rows;
-            echo "<p style='color: green;'>✅ Updated $affected existing bills with subtotal values</p>";
-        }
+    // Insert default admin user if empty
+    $checkUser = $conn->query("SELECT id FROM users LIMIT 1");
+    if ($checkUser && $checkUser->num_rows == 0) {
+        $defaultPass = password_hash('admin123', PASSWORD_DEFAULT);
+        $stmt = $conn->prepare("INSERT INTO users (username, password, full_name) VALUES ('admin', ?, 'Admin User')");
+        $stmt->bind_param("s", $defaultPass);
+        $stmt->execute();
+        echo "<p style='color: blue;'>👤 Default Admin User created (Username: <strong>admin</strong> | Password: <strong>admin123</strong>)</p>";
     }
 }
 
-// Check bill_items table for HSN, unit and item-wise tax columns
-$checkQuery = "SHOW COLUMNS FROM bill_items LIKE 'hsn_code'";
-$result = $conn->query($checkQuery);
+// 2. Create company_settings table
+$tableCompany = "CREATE TABLE IF NOT EXISTS `company_settings` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `company_name` VARCHAR(100) DEFAULT 'LaserEdge MedTech',
+  `address` TEXT,
+  `phone` VARCHAR(50),
+  `email` VARCHAR(100),
+  `gstin` VARCHAR(20),
+  `footer_note` TEXT,
+  `cgst_rate` DECIMAL(5,2) DEFAULT 2.50,
+  `sgst_rate` DECIMAL(5,2) DEFAULT 2.50,
+  `enable_tax` TINYINT(1) DEFAULT 1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
 
-if ($result->num_rows == 0) {
-    $conn->query("ALTER TABLE bill_items ADD COLUMN hsn_code VARCHAR(20) AFTER product_name");
-    $conn->query("ALTER TABLE bill_items ADD COLUMN unit VARCHAR(20) DEFAULT 'Qty' AFTER quantity");
+if ($conn->query($tableCompany)) {
+    echo "<p style='color: green;'>✅ Table 'company_settings' verified</p>";
 }
 
-$checkTaxQuery = "SHOW COLUMNS FROM bill_items LIKE 'cgst_rate'";
-$resultTax = $conn->query($checkTaxQuery);
+// 3. Create bills table
+$tableBills = "CREATE TABLE IF NOT EXISTS `bills` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `bill_no` VARCHAR(50) NOT NULL UNIQUE,
+  `bill_date` DATE NOT NULL,
+  `customer_name` VARCHAR(100) NOT NULL,
+  `customer_phone` VARCHAR(20),
+  `customer_id_type` VARCHAR(20) DEFAULT 'none',
+  `customer_gstin` VARCHAR(20),
+  `customer_aadhaar` VARCHAR(20),
+  `customer_address` TEXT NOT NULL,
+  `shipping_address` TEXT,
+  `is_shipping_same` TINYINT(1) DEFAULT 1,
+  `subtotal` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `cgst_rate` DECIMAL(5,2) DEFAULT 2.50,
+  `cgst_amount` DECIMAL(10,2) DEFAULT 0.00,
+  `sgst_rate` DECIMAL(5,2) DEFAULT 2.50,
+  `sgst_amount` DECIMAL(10,2) DEFAULT 0.00,
+  `grand_total` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `payment_status` ENUM('Paid', 'Pending', 'Partial') DEFAULT 'Pending',
+  `payment_received` DECIMAL(10,2) DEFAULT 0.00,
+  `notes` TEXT,
+  `created_by` INT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
 
-if ($resultTax->num_rows > 0) {
-    echo "<p style='color: orange;'>⚠️ Tax columns already exist in 'bill_items' table.</p>";
-} else {
-    echo "<p style='color: blue;'>📝 Adding per-item tax columns to 'bill_items' table...</p>";
-    $itemTaxQueries = [
-        "ALTER TABLE bill_items ADD COLUMN cgst_rate DECIMAL(5,2) DEFAULT 0.00 AFTER price",
-        "ALTER TABLE bill_items ADD COLUMN cgst_amount DECIMAL(10,2) DEFAULT 0.00 AFTER cgst_rate",
-        "ALTER TABLE bill_items ADD COLUMN sgst_rate DECIMAL(5,2) DEFAULT 0.00 AFTER cgst_amount",
-        "ALTER TABLE bill_items ADD COLUMN sgst_amount DECIMAL(10,2) DEFAULT 0.00 AFTER sgst_rate"
-    ];
-    foreach ($itemTaxQueries as $q) {
-        $conn->query($q);
-    }
-    echo "<p style='color: green;'>✅ Successfully added per-item tax columns to 'bill_items' table</p>";
+if ($conn->query($tableBills)) {
+    echo "<p style='color: green;'>✅ Table 'bills' verified</p>";
 }
 
-// Check company_settings for tax columns
-$checkQuery = "SHOW COLUMNS FROM company_settings LIKE 'cgst_rate'";
-$result = $conn->query($checkQuery);
+// 4. Create bill_items table
+$tableItems = "CREATE TABLE IF NOT EXISTS `bill_items` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `bill_id` INT NOT NULL,
+  `product_name` VARCHAR(255) NOT NULL,
+  `hsn_code` VARCHAR(20),
+  `quantity` DECIMAL(10,2) NOT NULL DEFAULT 1.00,
+  `unit` VARCHAR(20) DEFAULT 'Qty',
+  `price` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `cgst_rate` DECIMAL(5,2) DEFAULT 0.00,
+  `cgst_amount` DECIMAL(10,2) DEFAULT 0.00,
+  `sgst_rate` DECIMAL(5,2) DEFAULT 0.00,
+  `sgst_amount` DECIMAL(10,2) DEFAULT 0.00,
+  `total` DECIMAL(10,2) NOT NULL DEFAULT 0.00
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
 
-if ($result->num_rows > 0) {
-    echo "<p style='color: orange;'>⚠️ Tax settings already exist in 'company_settings' table. No update needed!</p>";
-} else {
-    echo "<p style='color: blue;'>📝 Adding tax settings to 'company_settings' table...</p>";
-    
-    $queries = [
-        "ALTER TABLE company_settings ADD COLUMN cgst_rate DECIMAL(5,2) DEFAULT 2.50",
-        "ALTER TABLE company_settings ADD COLUMN sgst_rate DECIMAL(5,2) DEFAULT 2.50",
-        "ALTER TABLE company_settings ADD COLUMN enable_tax TINYINT(1) DEFAULT 1"
-    ];
-    
-    $success = 0;
-    foreach ($queries as $query) {
-        if ($conn->query($query)) {
-            $success++;
-        } else {
-            echo "<p style='color: red;'>❌ Error: " . $conn->error . "</p>";
-        }
-    }
-    
-    if ($success == 3) {
-        echo "<p style='color: green;'>✅ Successfully added tax settings to 'company_settings' table</p>";
-    }
+if ($conn->query($tableItems)) {
+    echo "<p style='color: green;'>✅ Table 'bill_items' verified</p>";
 }
 
-// Show current table structure
-echo "<h3>Current Database Structure:</h3>";
-
-echo "<h4>Bills Table Columns:</h4>";
-$result = $conn->query("DESCRIBE bills");
-echo "<table border='1' style='border-collapse: collapse; width: 100%;'>";
-echo "<tr><th>Field</th><th>Type</th><th>Null</th><th>Default</th></tr>";
-while ($row = $result->fetch_assoc()) {
-    $highlight = in_array($row['Field'], ['subtotal', 'cgst_rate', 'cgst_amount', 'sgst_rate', 'sgst_amount']) ? 'background: #d1fae5;' : '';
-    echo "<tr style='$highlight'><td>{$row['Field']}</td><td>{$row['Type']}</td><td>{$row['Null']}</td><td>{$row['Default']}</td></tr>";
-}
-echo "</table>";
-
-echo "<h4>Bill Items Table Columns:</h4>";
-$result = $conn->query("DESCRIBE bill_items");
-echo "<table border='1' style='border-collapse: collapse; width: 100%;'>";
-echo "<tr><th>Field</th><th>Type</th><th>Null</th><th>Default</th></tr>";
-while ($row = $result->fetch_assoc()) {
-    $highlight = in_array($row['Field'], ['hsn_code', 'unit']) ? 'background: #d1fae5;' : '';
-    echo "<tr style='$highlight'><td>{$row['Field']}</td><td>{$row['Type']}</td><td>{$row['Null']}</td><td>{$row['Default']}</td></tr>";
-}
-echo "</table>";
+// Ensure per-item GST columns exist
+ensureDatabaseSchema($conn);
 
 $conn->close();
 
 echo "<hr>";
-echo "<h3 style='color: green;'>✅ Database Update Complete!</h3>";
-echo "<p><strong>You can now create bills with tax calculation.</strong></p>";
-echo "<p><a href='create_bill.php' style='padding: 10px 20px; background: #2563eb; color: white; text-decoration: none; border-radius: 5px;'>Go to Create Bill</a></p>";
-echo "<br>";
-echo "<p style='color: red;'><strong>IMPORTANT: Delete this update_database.php file after running it!</strong></p>";
+echo "<h3 style='color: green;'>✅ Database Setup Complete!</h3>";
+echo "<p><a href='login.php' style='padding: 10px 20px; background: #2563eb; color: white; text-decoration: none; border-radius: 5px;'>Go to Login Page</a></p>";
 ?>
