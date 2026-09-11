@@ -12,7 +12,7 @@ if (session_status() === PHP_SESSION_NONE) {
 // Database configuration
 define('DB_HOST', 'localhost');
 define('DB_USER', 'u447123054_billing_system');
-define('DB_PASS', 'Rakesh#123@456');
+define('DB_PASS', 'Mu$k@n1106');
 define('DB_NAME', 'u447123054_billing_system');
 
 // Create database connection
