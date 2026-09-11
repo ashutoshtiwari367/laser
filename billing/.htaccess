@@ -1,0 +1,2 @@
+# .htaccess - Web Server Configuration
+DirectoryIndex index.php dashboard.php login.php
