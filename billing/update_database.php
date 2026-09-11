@@ -55,8 +55,12 @@ if ($conn->query($updateQuery)) {
 
 // Columns to check and add for 'bill_items' table
 $itemsColumns = [
-    'hsn_code' => "ALTER TABLE bill_items ADD COLUMN hsn_code VARCHAR(20) AFTER product_name",
-    'unit'     => "ALTER TABLE bill_items ADD COLUMN unit VARCHAR(20) DEFAULT 'Qty' AFTER quantity"
+    'hsn_code'    => "ALTER TABLE bill_items ADD COLUMN hsn_code VARCHAR(20) AFTER product_name",
+    'unit'        => "ALTER TABLE bill_items ADD COLUMN unit VARCHAR(20) DEFAULT 'Qty' AFTER quantity",
+    'cgst_rate'   => "ALTER TABLE bill_items ADD COLUMN cgst_rate DECIMAL(5,2) DEFAULT 2.50 AFTER price",
+    'cgst_amount' => "ALTER TABLE bill_items ADD COLUMN cgst_amount DECIMAL(10,2) DEFAULT 0.00 AFTER cgst_rate",
+    'sgst_rate'   => "ALTER TABLE bill_items ADD COLUMN sgst_rate DECIMAL(5,2) DEFAULT 2.50 AFTER cgst_amount",
+    'sgst_amount' => "ALTER TABLE bill_items ADD COLUMN sgst_amount DECIMAL(10,2) DEFAULT 0.00 AFTER sgst_rate"
 ];
 
 echo "<h3>2. Updating 'bill_items' table:</h3>";

@@ -443,8 +443,10 @@ $amountInWords = numberToWords($bill['grand_total']);
                     $totalQty = 0;
                     foreach ($items as $item): 
                         $itemTotal = floatval($item['quantity']) * floatval($item['price']);
-                        $itemCGST = ($itemTotal * $bill['cgst_rate']) / 100;
-                        $itemSGST = ($itemTotal * $bill['sgst_rate']) / 100;
+                        $itemCgstRate = isset($item['cgst_rate']) ? floatval($item['cgst_rate']) : floatval($bill['cgst_rate']);
+                        $itemSgstRate = isset($item['sgst_rate']) ? floatval($item['sgst_rate']) : floatval($bill['sgst_rate']);
+                        $itemCGST = isset($item['cgst_amount']) && $item['cgst_amount'] > 0 ? floatval($item['cgst_amount']) : (($itemTotal * $itemCgstRate) / 100);
+                        $itemSGST = isset($item['sgst_amount']) && $item['sgst_amount'] > 0 ? floatval($item['sgst_amount']) : (($itemTotal * $itemSgstRate) / 100);
                         $itemAmount = $itemTotal + $itemCGST + $itemSGST;
                         $totalQty += $item['quantity'];
                     ?>

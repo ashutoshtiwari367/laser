@@ -71,8 +71,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
         $quantities = $_POST['quantity'];
         $units = $_POST['unit'];
         $prices = $_POST['price'];
+        $item_cgst_rates = $_POST['item_cgst_rate'] ?? [];
+        $item_sgst_rates = $_POST['item_sgst_rate'] ?? [];
         
-        $stmt = $conn->prepare("INSERT INTO bill_items (bill_id, product_name, hsn_code, quantity, unit, price, total) VALUES (?, ?, ?, ?, ?, ?, ?)");
+        $stmt = $conn->prepare("INSERT INTO bill_items (bill_id, product_name, hsn_code, quantity, unit, price, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         
         if (!$stmt) {
             throw new Exception('Prepare items failed: ' . $conn->error);
@@ -86,9 +88,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
             $quantity = floatval($quantities[$i]);
             $unit = sanitize($units[$i]);
             $price = floatval($prices[$i]);
-            $total = $quantity * $price;
+            $icgst_rate = isset($item_cgst_rates[$i]) ? floatval($item_cgst_rates[$i]) : 2.50;
+            $isgst_rate = isset($item_sgst_rates[$i]) ? floatval($item_sgst_rates[$i]) : 2.50;
             
-            $stmt->bind_param("issdsdd", $bill_id, $product, $hsn, $quantity, $unit, $price, $total);
+            $taxable = $quantity * $price;
+            $icgst_amount = ($taxable * $icgst_rate) / 100;
+            $isgst_amount = ($taxable * $isgst_rate) / 100;
+            $total = $taxable + $icgst_amount + $isgst_amount;
+            
+            $stmt->bind_param("issdsdddddd", $bill_id, $product, $hsn, $quantity, $unit, $price, $icgst_rate, $icgst_amount, $isgst_rate, $isgst_amount, $total);
             
             if (!$stmt->execute()) {
                 throw new Exception('Execute item failed: ' . $stmt->error);
@@ -225,12 +233,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
                         <table class="table" id="itemsTable">
                             <thead>
                                 <tr>
-                                    <th width="30%">Product Name</th>
-                                    <th width="12%">HSN/SAC Code</th>
-                                    <th width="10%">Qty</th>
-                                    <th width="10%">Unit</th>
-                                    <th width="12%">Price</th>
-                                    <th width="15%">Total</th>
+                                    <th width="24%">Product Name</th>
+                                    <th width="10%">HSN/SAC Code</th>
+                                    <th width="8%">Qty</th>
+                                    <th width="8%">Unit</th>
+                                    <th width="10%">Price</th>
+                                    <th width="9%">CGST %</th>
+                                    <th width="9%">SGST %</th>
+                                    <th width="14%">Total (Incl. Tax)</th>
                                     <th width="8%">Action</th>
                                 </tr>
                             </thead>
@@ -250,13 +260,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
                                         </select>
                                     </td>
                                     <td><input type="number" name="price[]" class="form-control price" step="0.01" min="0.01" value="0" required></td>
+                                    <td><input type="number" name="item_cgst_rate[]" class="form-control item-cgst-rate" step="0.01" min="0" max="100" value="2.50"></td>
+                                    <td><input type="number" name="item_sgst_rate[]" class="form-control item-sgst-rate" step="0.01" min="0" max="100" value="2.50"></td>
                                     <td><input type="text" class="form-control total" value="0.00" readonly></td>
                                     <td><button type="button" class="btn btn-danger btn-sm" onclick="removeItem(this)">×</button></td>
                                 </tr>
                             </tbody>
                             <tfoot>
                                 <tr>
-                                    <td colspan="5" class="text-right"><strong>Subtotal:</strong></td>
+                                    <td colspan="7" class="text-right"><strong>Subtotal (Excl. Tax):</strong></td>
                                     <td><input type="text" id="subtotal_display" class="form-control" readonly style="font-weight: bold;"></td>
                                     <td></td>
                                 </tr>
@@ -413,19 +425,34 @@ document.getElementById('payment_status').addEventListener('change', function() 
 });
             attachEventListeners();
             
-            // Add event listeners for tax rate changes
-            document.getElementById('cgst_rate').addEventListener('input', calculateTax);
-            document.getElementById('sgst_rate').addEventListener('input', calculateTax);
+            // Add event listeners for global tax rate changes
+            document.getElementById('cgst_rate').addEventListener('input', updateAllItemTaxRates);
+            document.getElementById('sgst_rate').addEventListener('input', updateAllItemTaxRates);
         });
         
         function attachEventListeners() {
-            document.querySelectorAll('.quantity, .price').forEach(input => {
+            document.querySelectorAll('.quantity, .price, .item-cgst-rate, .item-sgst-rate').forEach(input => {
                 input.addEventListener('input', function() {
                     calculateTotal(this);
                 });
                 input.addEventListener('change', function() {
                     calculateTotal(this);
                 });
+            });
+        }
+        
+        function updateAllItemTaxRates() {
+            const globalCgst = document.getElementById('cgst_rate').value || '2.50';
+            const globalSgst = document.getElementById('sgst_rate').value || '2.50';
+            document.querySelectorAll('.item-cgst-rate').forEach(input => {
+                input.value = globalCgst;
+            });
+            document.querySelectorAll('.item-sgst-rate').forEach(input => {
+                input.value = globalSgst;
+            });
+            document.querySelectorAll('.item-row').forEach(row => {
+                const qtyInput = row.querySelector('.quantity');
+                if (qtyInput) calculateTotal(qtyInput);
             });
         }
         
@@ -437,6 +464,9 @@ document.getElementById('payment_status').addEventListener('change', function() 
                 alert('Maximum 15 items allowed for single page invoice!');
                 return;
             }
+            
+            const cgstDefault = document.getElementById('cgst_rate').value || '2.50';
+            const sgstDefault = document.getElementById('sgst_rate').value || '2.50';
             
             const newRow = document.createElement('tr');
             newRow.className = 'item-row';
@@ -455,6 +485,8 @@ document.getElementById('payment_status').addEventListener('change', function() 
                     </select>
                 </td>
                 <td><input type="number" name="price[]" class="form-control price" step="0.01" min="0.01" value="0" required></td>
+                <td><input type="number" name="item_cgst_rate[]" class="form-control item-cgst-rate" step="0.01" min="0" max="100" value="${cgstDefault}"></td>
+                <td><input type="number" name="item_sgst_rate[]" class="form-control item-sgst-rate" step="0.01" min="0" max="100" value="${sgstDefault}"></td>
                 <td><input type="text" class="form-control total" value="0.00" readonly></td>
                 <td><button type="button" class="btn btn-danger btn-sm" onclick="removeItem(this)">×</button></td>
             `;
@@ -476,35 +508,51 @@ document.getElementById('payment_status').addEventListener('change', function() 
             const row = input.closest('tr');
             const quantity = parseFloat(row.querySelector('.quantity').value) || 0;
             const price = parseFloat(row.querySelector('.price').value) || 0;
-            const total = quantity * price;
+            const cgstRate = parseFloat(row.querySelector('.item-cgst-rate').value) || 0;
+            const sgstRate = parseFloat(row.querySelector('.item-sgst-rate').value) || 0;
+            
+            const taxable = quantity * price;
+            const cgstAmt = (taxable * cgstRate) / 100;
+            const sgstAmt = (taxable * sgstRate) / 100;
+            const total = taxable + cgstAmt + sgstAmt;
+            
             row.querySelector('.total').value = total.toFixed(2);
             calculateSubtotal();
         }
         
         function calculateSubtotal() {
             let subtotal = 0;
-            document.querySelectorAll('.total').forEach(input => {
-                subtotal += parseFloat(input.value) || 0;
+            let totalCgst = 0;
+            let totalSgst = 0;
+            
+            document.querySelectorAll('.item-row').forEach(row => {
+                const quantity = parseFloat(row.querySelector('.quantity').value) || 0;
+                const price = parseFloat(row.querySelector('.price').value) || 0;
+                const cgstRate = parseFloat(row.querySelector('.item-cgst-rate').value) || 0;
+                const sgstRate = parseFloat(row.querySelector('.item-sgst-rate').value) || 0;
+                
+                const taxable = quantity * price;
+                const cgstAmt = (taxable * cgstRate) / 100;
+                const sgstAmt = (taxable * sgstRate) / 100;
+                
+                subtotal += taxable;
+                totalCgst += cgstAmt;
+                totalSgst += sgstAmt;
             });
+            
+            const grandTotal = subtotal + totalCgst + totalSgst;
+            
             document.getElementById('subtotal').value = subtotal.toFixed(2);
             document.getElementById('subtotal_display').value = '₹' + subtotal.toFixed(2);
-            calculateTax();
-        }
-        
-        function calculateTax() {
-            const subtotal = parseFloat(document.getElementById('subtotal').value) || 0;
-            const cgstRate = parseFloat(document.getElementById('cgst_rate').value) || 0;
-            const sgstRate = parseFloat(document.getElementById('sgst_rate').value) || 0;
-            
-            const cgstAmount = (subtotal * cgstRate) / 100;
-            const sgstAmount = (subtotal * sgstRate) / 100;
-            const grandTotal = subtotal + cgstAmount + sgstAmount;
-            
-            document.getElementById('cgst_amount').value = cgstAmount.toFixed(2);
-            document.getElementById('sgst_amount').value = sgstAmount.toFixed(2);
+            document.getElementById('cgst_amount').value = totalCgst.toFixed(2);
+            document.getElementById('sgst_amount').value = totalSgst.toFixed(2);
             document.getElementById('grand_total').value = grandTotal.toFixed(2);
             
             updateAmountInWords(grandTotal);
+        }
+        
+        function calculateTax() {
+            calculateSubtotal();
         }
         
         function updateAmountInWords(amount) {

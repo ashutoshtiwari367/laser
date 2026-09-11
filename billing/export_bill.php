@@ -46,7 +46,7 @@ if (isset($_GET['id'])) {
     
     // Items Header
     fputcsv($output, ['ITEMS']);
-    fputcsv($output, ['S.No.', 'Product Name', 'HSN Code', 'Quantity', 'Unit', 'Price', 'Total']);
+    fputcsv($output, ['S.No.', 'Product Name', 'HSN Code', 'Quantity', 'Unit', 'Price', 'CGST %', 'CGST Amt', 'SGST %', 'SGST Amt', 'Total (Incl. Tax)']);
     
     $sno = 1;
     while ($item = $itemsResult->fetch_assoc()) {
@@ -57,6 +57,10 @@ if (isset($_GET['id'])) {
             $item['quantity'],
             $item['unit'] ?? 'Qty',
             $item['price'],
+            $item['cgst_rate'] ?? '',
+            $item['cgst_amount'] ?? '',
+            $item['sgst_rate'] ?? '',
+            $item['sgst_amount'] ?? '',
             $item['total']
         ]);
     }
