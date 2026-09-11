@@ -351,29 +351,21 @@ $amountInWords = numberToWords($bill['grand_total']);
                 <h1>Tax Invoice</h1>
             </div>
             
-                        <!-- Company Details -->
-                <div class="company-details-container"
-                    style="display: flex; justify-content: space-between; align-items: center; width: 100%; border-bottom: 2px solid #000;">
-
-<!-- Right Side: Company Logo -->
-                    <div class="company-logo" style="text-align: right; ">
-                        <img src="logolaseredgemedtech-removebg-preview.webp" alt="Company Logo"
-                            style="width: 250px; height: auto;">
-                    </div>
-                    <!-- Left Side: Company Details -->
-                    <div class="company-details-section">
-                        <h2 style="margin: 0;">LASEREDGE MEDTECH</h2>
-                        <p style="margin: 5px 0;">Block -C1, House No-175 Indira Nagar Kanpur - 208026</p>
-                        <p style="margin: 5px 0;">
-                            <strong>Phone no.:</strong> +917618037434, +918090938659 <br>
-                            <strong>Email:</strong> laseredgemedtech@gmail.com
-                            <br><strong>GSTN:</strong>  09BXCPK2300M1ZL
-                        </p>
-                    </div>
-
-                    
-
+            <!-- Company Details -->
+            <div class="company-details-container" style="display: table; width: 100%; border-bottom: 2px solid #000; padding: 10px 15px;">
+                <div style="display: table-cell; vertical-align: middle; width: 60%;">
+                    <h2 style="margin: 0; font-size: 16px; font-weight: bold; color: #000;">LASEREDGE MEDTECH</h2>
+                    <p style="margin: 3px 0; font-size: 10px;">Block -C1, House No-175 Indira Nagar Kanpur - 208026</p>
+                    <p style="margin: 3px 0; font-size: 10px;">
+                        <strong>Phone no.:</strong> +917618037434, +918090938659 <br>
+                        <strong>Email:</strong> laseredgemedtech@gmail.com <br>
+                        <strong>GSTN:</strong> 09BXCPK2300M1ZL
+                    </p>
                 </div>
+                <div style="display: table-cell; vertical-align: middle; width: 40%; text-align: right;">
+                    <img src="logolaseredgemedtech-removebg-preview.webp" alt="Company Logo" style="max-width: 220px; height: auto;">
+                </div>
+            </div>
             
             
 

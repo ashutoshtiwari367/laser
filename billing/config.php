@@ -133,77 +133,93 @@ function formatCurrency($amount) {
 
 // Convert number to words (Indian format)
 function numberToWords($number) {
-    $number = (float)$number;
-    $decimal = round($number - floor($number), 2) * 100;
-    $number = floor($number);
+    $formatted = sprintf("%.2f", (float)$number);
+    $parts = explode('.', $formatted);
+    
+    $rupees = (int)$parts[0];
+    $paise = (int)$parts[1];
     
     $words = array(
-        '0' => '', '1' => 'One', '2' => 'Two', '3' => 'Three', '4' => 'Four',
-        '5' => 'Five', '6' => 'Six', '7' => 'Seven', '8' => 'Eight', '9' => 'Nine',
-        '10' => 'Ten', '11' => 'Eleven', '12' => 'Twelve', '13' => 'Thirteen',
-        '14' => 'Fourteen', '15' => 'Fifteen', '16' => 'Sixteen', '17' => 'Seventeen',
-        '18' => 'Eighteen', '19' => 'Nineteen', '20' => 'Twenty', '30' => 'Thirty',
-        '40' => 'Forty', '50' => 'Fifty', '60' => 'Sixty', '70' => 'Seventy',
-        '80' => 'Eighty', '90' => 'Ninety'
+        0 => '', 1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four',
+        5 => 'Five', 6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine',
+        10 => 'Ten', 11 => 'Eleven', 12 => 'Twelve', 13 => 'Thirteen',
+        14 => 'Fourteen', 15 => 'Fifteen', 16 => 'Sixteen', 17 => 'Seventeen',
+        18 => 'Eighteen', 19 => 'Nineteen', 20 => 'Twenty', 30 => 'Thirty',
+        40 => 'Forty', 50 => 'Fifty', 60 => 'Sixty', 70 => 'Seventy',
+        80 => 'Eighty', 90 => 'Ninety'
     );
     
-    $result = '';
-    
-    if ($number == 0) {
+    if ($rupees === 0 && $paise === 0) {
         return 'Zero Rupees Only';
     }
     
-    // Crores
-    $crore = floor($number / 10000000);
-    if ($crore > 0) {
-        $result .= convertTwoDigits($crore, $words) . ' Crore ';
-        $number %= 10000000;
+    $result = '';
+    
+    if ($rupees > 0) {
+        // Crores
+        $crore = (int)floor($rupees / 10000000);
+        if ($crore > 0) {
+            $result .= convertTwoDigits($crore, $words) . ' Crore ';
+            $rupees %= 10000000;
+        }
+        
+        // Lakhs
+        $lakh = (int)floor($rupees / 100000);
+        if ($lakh > 0) {
+            $result .= convertTwoDigits($lakh, $words) . ' Lakh ';
+            $rupees %= 100000;
+        }
+        
+        // Thousands
+        $thousand = (int)floor($rupees / 1000);
+        if ($thousand > 0) {
+            $result .= convertTwoDigits($thousand, $words) . ' Thousand ';
+            $rupees %= 1000;
+        }
+        
+        // Hundreds
+        $hundred = (int)floor($rupees / 100);
+        if ($hundred > 0) {
+            $result .= ($words[$hundred] ?? '') . ' Hundred ';
+            $rupees %= 100;
+        }
+        
+        // Remaining
+        if ($rupees > 0) {
+            $result .= convertTwoDigits($rupees, $words);
+        }
+        
+        $result = trim($result) . ' Rupees';
     }
     
-    // Lakhs
-    $lakh = floor($number / 100000);
-    if ($lakh > 0) {
-        $result .= convertTwoDigits($lakh, $words) . ' Lakh ';
-        $number %= 100000;
-    }
-    
-    // Thousands
-    $thousand = floor($number / 1000);
-    if ($thousand > 0) {
-        $result .= convertTwoDigits($thousand, $words) . ' Thousand ';
-        $number %= 1000;
-    }
-    
-    // Hundreds
-    $hundred = floor($number / 100);
-    if ($hundred > 0) {
-        $result .= $words[$hundred] . ' Hundred ';
-        $number %= 100;
-    }
-    
-    // Remaining
-    if ($number > 0) {
-        $result .= convertTwoDigits($number, $words);
-    }
-    
-    $result = trim($result) . ' Rupees';
-    
-    if ($decimal > 0) {
-        $result .= ' and ' . convertTwoDigits($decimal, $words) . ' Paise';
+    if ($paise > 0) {
+        $paiseWords = convertTwoDigits($paise, $words);
+        if ($rupees > 0) {
+            $result .= ' and ' . $paiseWords . ' Paise';
+        } else {
+            $result = $paiseWords . ' Paise';
+        }
     }
     
     return $result . ' Only';
 }
 
 function convertTwoDigits($number, $words) {
+    $number = (int)$number;
+    if ($number <= 0) {
+        return '';
+    }
     if ($number < 20) {
-        return $words[$number];
+        return $words[$number] ?? '';
     }
     
-    $tens = floor($number / 10) * 10;
+    $tens = (int)(floor($number / 10) * 10);
     $units = $number % 10;
     
-    return $words[$tens] . ($units > 0 ? ' ' . $words[$units] : '');
+    $tensWord = $words[$tens] ?? '';
+    $unitsWord = ($units > 0 && isset($words[$units])) ? ' ' . $words[$units] : '';
+    
+    return $tensWord . $unitsWord;
 }
 
 // Sanitize input

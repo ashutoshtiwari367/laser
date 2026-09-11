@@ -327,8 +327,39 @@ header('Content-Type: text/html; charset=utf-8');
             margin-top: 40px;
             font-weight: bold;
             font-size: 11px;
+        .action-bar {
+            max-width: 210mm;
+            margin: 15px auto 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1e293b;
+            color: #fff;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
         }
         
+        .action-bar .btn {
+            padding: 8px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            border-radius: 6px;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn-back { background: #475569; color: #fff; }
+        .btn-back:hover { background: #334155; }
+        .btn-save { background: #2563eb; color: #fff; }
+        .btn-save:hover { background: #1d4ed8; }
+        .btn-print { background: #059669; color: #fff; }
+        .btn-print:hover { background: #047857; }
+
         @media print {
             @page {
                 margin: 0;
@@ -344,55 +375,70 @@ header('Content-Type: text/html; charset=utf-8');
                 page-break-after: always;
                 page-break-inside: avoid;
             }
+            
+            .no-print {
+                display: none !important;
+            }
         }
     </style>
+    <!-- Include html2pdf.js for client-side direct PDF generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
-        // Auto download as PDF on page load
+        function downloadPDF() {
+            const element = document.querySelector('.professional-invoice');
+            const opt = {
+                margin:       [0, 0, 0, 0],
+                filename:     'Invoice-<?php echo $bill['bill_no']; ?>.pdf',
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, logging: false },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().set(opt).from(element).save();
+        }
+
         window.onload = function() {
-            // Small delay to ensure page is fully rendered
+            // Safe print dialog trigger without immediate redirect
             setTimeout(function() {
                 window.print();
-                // Redirect back after print dialog
-                setTimeout(function() {
-                    window.location.href = 'preview_bill.php?id=<?php echo $billId; ?>';
-                }, 1000);
-            }, 500);
+            }, 600);
         }
         
-        // Prevent default header/footer
         window.addEventListener('beforeprint', function() {
             document.title = 'Invoice-<?php echo $bill['bill_no']; ?>';
         });
     </script>
 </head>
 <body>
+    <div class="action-bar no-print">
+        <div>
+            <a href="preview_bill.php?id=<?php echo $billId; ?>" class="btn btn-back">⬅ Back to Invoice</a>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="downloadPDF()" class="btn btn-save">📥 Download PDF File</button>
+            <button onclick="window.print()" class="btn btn-print">🖨️ Print / Save as PDF</button>
+        </div>
+    </div>
+
     <div class="professional-invoice">
         <!-- Header: Tax Invoice -->
         <div class="invoice-header-section">
             <h1>Tax Invoice</h1>
         </div>
         
-          <!-- Company Details -->
-        <div class="company-details-container"
-            style="display: flex; justify-content: space-between; align-items: center; width: 100%; border-bottom: 2px solid #000;">
-
- <div class="company-logo" style="text-align: right; ">
-                <img src="logolaseredgemedtech-removebg-preview.webp" alt="Company Logo"
-                    style="width: 250px; height: auto;">
-            </div>
-            <!-- Left Side: Company Details -->
-            <div class="" style="padding-right:2%;">
-                <h2 style="margin: 0;">LASEREDGE MEDTECH</h2>
-                <p style="margin: 5px 0;">Block -C1, House No-175 Indira Nagar Kanpur - 208026</p>
-                <p style="margin: 5px 0;">
+        <!-- Company Details -->
+        <div class="company-details-container" style="display: table; width: 100%; border-bottom: 2px solid #000; padding: 10px 15px;">
+            <div style="display: table-cell; vertical-align: middle; width: 60%;">
+                <h2 style="margin: 0; font-size: 16px; font-weight: bold; color: #000;">LASEREDGE MEDTECH</h2>
+                <p style="margin: 3px 0; font-size: 10px;">Block -C1, House No-175 Indira Nagar Kanpur - 208026</p>
+                <p style="margin: 3px 0; font-size: 10px;">
                     <strong>Phone no.:</strong> +917618037434, +918090938659 <br>
-                    <strong>Email:</strong> laseredgemedtech@gmail.com
-<br><strong>GSTN:</strong>  09BXCPK2300M1ZL                </p>
+                    <strong>Email:</strong> laseredgemedtech@gmail.com <br>
+                    <strong>GSTN:</strong> 09BXCPK2300M1ZL
+                </p>
             </div>
-
-            <!-- Right Side: Company Logo -->
-           
-
+            <div style="display: table-cell; vertical-align: middle; width: 40%; text-align: right;">
+                <img src="logolaseredgemedtech-removebg-preview.webp" alt="Company Logo" style="max-width: 220px; height: auto;">
+            </div>
         </div>
         
         <!-- Bill To and Invoice Details -->
