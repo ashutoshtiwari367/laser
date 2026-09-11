@@ -17,14 +17,27 @@ define('DB_NAME', 'u447123054_billing_system');
 
 // Create database connection
 function getDBConnection() {
-    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-    
-    if ($conn->connect_error) {
-        die("Connection failed: " . $conn->connect_error);
+    try {
+        mysqli_report(MYSQLI_REPORT_OFF);
+        $conn = @new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        
+        if ($conn->connect_error) {
+            die("<div style='max-width: 600px; margin: 50px auto; padding: 20px; font-family: sans-serif; background: #fee2e2; border-left: 5px solid #ef4444; border-radius: 8px;'>
+                <h3 style='color: #991b1b; margin-top: 0;'>⚠️ Database Connection Failed</h3>
+                <p><strong>Error:</strong> " . htmlspecialchars($conn->connect_error) . "</p>
+                <p>Please verify <code>DB_USER</code>, <code>DB_PASS</code>, and <code>DB_NAME</code> in <code>config.php</code> against your Hostinger MySQL Database control panel.</p>
+            </div>");
+        }
+        
+        $conn->set_charset("utf8mb4");
+        return $conn;
+    } catch (Exception $e) {
+        die("<div style='max-width: 600px; margin: 50px auto; padding: 20px; font-family: sans-serif; background: #fee2e2; border-left: 5px solid #ef4444; border-radius: 8px;'>
+            <h3 style='color: #991b1b; margin-top: 0;'>⚠️ Database Connection Failed</h3>
+            <p><strong>Error:</strong> " . htmlspecialchars($e->getMessage()) . "</p>
+            <p>Please verify <code>DB_USER</code>, <code>DB_PASS</code>, and <code>DB_NAME</code> in <code>config.php</code> against your Hostinger MySQL Database control panel.</p>
+        </div>");
     }
-    
-    $conn->set_charset("utf8mb4");
-    return $conn;
 }
 
 // Check if user is logged in
