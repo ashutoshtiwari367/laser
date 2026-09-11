@@ -76,14 +76,16 @@ header('Content-Type: text/html; charset=utf-8');
         }
         
         .professional-invoice {
-            width: 210mm;
-            height: 297mm;
-            margin: 0 auto;
+            width: 206mm;
+            max-height: 293mm;
+            margin: 10px auto;
             background: white;
             padding: 0;
             border: 2px solid #000;
+            box-sizing: border-box;
             overflow: hidden;
-            page-break-after: always;
+            page-break-after: avoid;
+            page-break-inside: avoid;
         }
         
         .invoice-header-section {
@@ -156,7 +158,7 @@ header('Content-Type: text/html; charset=utf-8');
         
         /* FIXED HEIGHT PRODUCT TABLE */
         .product-table-container {
-            height: 450px;
+            height: 440px;
             overflow: hidden;
             border-bottom: 2px solid #000;
         }
@@ -327,9 +329,11 @@ header('Content-Type: text/html; charset=utf-8');
             margin-top: 40px;
             font-weight: bold;
             font-size: 11px;
+        }
+
         .action-bar {
-            max-width: 210mm;
-            margin: 15px auto 15px;
+            max-width: 206mm;
+            margin: 15px auto 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -357,8 +361,6 @@ header('Content-Type: text/html; charset=utf-8');
         .btn-back:hover { background: #334155; }
         .btn-save { background: #2563eb; color: #fff; }
         .btn-save:hover { background: #1d4ed8; }
-        .btn-print { background: #059669; color: #fff; }
-        .btn-print:hover { background: #047857; }
 
         @media print {
             @page {
@@ -369,10 +371,15 @@ header('Content-Type: text/html; charset=utf-8');
             body {
                 margin: 0;
                 padding: 0;
+                background: white;
             }
             
             .professional-invoice {
-                page-break-after: always;
+                width: 210mm;
+                height: 297mm;
+                margin: 0;
+                border: 2px solid #000;
+                page-break-after: avoid;
                 page-break-inside: avoid;
             }
             
@@ -386,26 +393,44 @@ header('Content-Type: text/html; charset=utf-8');
     <script>
         function downloadPDF() {
             const element = document.querySelector('.professional-invoice');
+            const btn = document.getElementById('btn-download-pdf');
+            if (btn) {
+                btn.innerHTML = '⏳ Downloading PDF...';
+                btn.disabled = true;
+            }
+
             const opt = {
                 margin:       [0, 0, 0, 0],
                 filename:     'Invoice-<?php echo $bill['bill_no']; ?>.pdf',
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, logging: false },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                pagebreak:    { mode: ['avoid-all'] }
             };
-            html2pdf().set(opt).from(element).save();
+
+            html2pdf().set(opt).from(element).save().then(function() {
+                if (btn) {
+                    btn.innerHTML = '✅ PDF Downloaded!';
+                    setTimeout(function() {
+                        btn.innerHTML = '📥 Download PDF Again';
+                        btn.disabled = false;
+                    }, 2000);
+                }
+            }).catch(function(err) {
+                console.error(err);
+                if (btn) {
+                    btn.innerHTML = '📥 Download PDF Again';
+                    btn.disabled = false;
+                }
+            });
         }
 
         window.onload = function() {
-            // Safe print dialog trigger without immediate redirect
+            // Auto trigger direct PDF file download without opening print dialog
             setTimeout(function() {
-                window.print();
-            }, 600);
+                downloadPDF();
+            }, 400);
         }
-        
-        window.addEventListener('beforeprint', function() {
-            document.title = 'Invoice-<?php echo $bill['bill_no']; ?>';
-        });
     </script>
 </head>
 <body>
@@ -413,9 +438,8 @@ header('Content-Type: text/html; charset=utf-8');
         <div>
             <a href="preview_bill.php?id=<?php echo $billId; ?>" class="btn btn-back">⬅ Back to Invoice</a>
         </div>
-        <div style="display: flex; gap: 10px;">
-            <button onclick="downloadPDF()" class="btn btn-save">📥 Download PDF File</button>
-            <button onclick="window.print()" class="btn btn-print">🖨️ Print / Save as PDF</button>
+        <div>
+            <button id="btn-download-pdf" onclick="downloadPDF()" class="btn btn-save">📥 Download PDF Again</button>
         </div>
     </div>
 
