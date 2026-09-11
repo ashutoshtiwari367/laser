@@ -558,7 +558,7 @@ header('Content-Type: text/html; charset=utf-8');
                     <table class="amounts-table">
                         <tr>
                             <td>Sub Total</td>
-                            <td class="text-right-col">₹ <?php echo number_format($bill['grand_total'], 2); ?></td>
+                            <td class="text-right-col">₹ <?php echo number_format($bill['subtotal'], 2); ?></td>
                         </tr>
                         <tr class="total-row">
                             <td>Total</td>
