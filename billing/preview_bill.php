@@ -355,6 +355,11 @@ $amountInWords = numberToWords($bill['grand_total']);
                 <div class="company-details-container"
                     style="display: flex; justify-content: space-between; align-items: center; width: 100%; border-bottom: 2px solid #000;">
 
+<!-- Right Side: Company Logo -->
+                    <div class="company-logo" style="text-align: right; ">
+                        <img src="logolaseredgemedtech-removebg-preview.webp" alt="Company Logo"
+                            style="width: 250px; height: auto;">
+                    </div>
                     <!-- Left Side: Company Details -->
                     <div class="company-details-section">
                         <h2 style="margin: 0;">LASEREDGE MEDTECH</h2>
@@ -366,11 +371,7 @@ $amountInWords = numberToWords($bill['grand_total']);
                         </p>
                     </div>
 
-                    <!-- Right Side: Company Logo -->
-                    <div class="company-logo" style="text-align: right; ">
-                        <img src="logolaseredgemedtech-removebg-preview.webp" alt="Company Logo"
-                            style="width: 250px; height: auto;">
-                    </div>
+                    
 
                 </div>
             
@@ -427,7 +428,7 @@ $amountInWords = numberToWords($bill['grand_total']);
                     <tr>
                         <th style="width: 8%;">S.NO.</th>
                         <th style="width: 32%;">PARTICULARS</th>
-                        <th style="width: 10%;">HSN</th>
+                        <th style="width: 10%;">HSN/SAC</th>
                         <th style="width: 8%;">QTY</th>
                         <th style="width: 12%;">PRICE</th>
                         <th style="width: 12%;">Taxable Amount</th>
@@ -440,20 +441,12 @@ $amountInWords = numberToWords($bill['grand_total']);
                     <?php 
                     $sno = 1;
                     $totalQty = 0;
-                    $totalCgstSum = 0;
-                    $totalSgstSum = 0;
                     foreach ($items as $item): 
-                        $itemTaxable = floatval($item['quantity']) * floatval($item['price']);
-                        $itemCgstRate = floatval($item['cgst_rate'] ?? $bill['cgst_rate'] ?? 2.5);
-                        $itemSgstRate = floatval($item['sgst_rate'] ?? $bill['sgst_rate'] ?? 2.5);
-                        
-                        $itemCGST = ($itemTaxable * $itemCgstRate) / 100;
-                        $itemSGST = ($itemTaxable * $itemSgstRate) / 100;
-                        $itemAmount = $itemTaxable + $itemCGST + $itemSGST;
-                        
+                        $itemTotal = floatval($item['quantity']) * floatval($item['price']);
+                        $itemCGST = ($itemTotal * $bill['cgst_rate']) / 100;
+                        $itemSGST = ($itemTotal * $bill['sgst_rate']) / 100;
+                        $itemAmount = $itemTotal + $itemCGST + $itemSGST;
                         $totalQty += $item['quantity'];
-                        $totalCgstSum += $itemCGST;
-                        $totalSgstSum += $itemSGST;
                     ?>
                         <tr>
                             <td class="text-center-col"><?php echo $sno++; ?></td>
@@ -461,9 +454,9 @@ $amountInWords = numberToWords($bill['grand_total']);
                             <td class="text-center-col"><?php echo $item['hsn_code'] ?: '-'; ?></td>
                             <td class="text-center-col"><?php echo number_format($item['quantity'], 0); ?></td>
                             <td class="text-right-col">₹ <?php echo number_format($item['price'], 2); ?></td>
-                            <td class="text-right-col">₹ <?php echo number_format($itemTaxable, 2); ?></td>
-                            <td class="text-right-col">₹ <?php echo number_format($itemCGST, 2); ?><br><small>(<?php echo number_format($itemCgstRate, 1); ?>%)</small></td>
-                            <td class="text-right-col">₹ <?php echo number_format($itemSGST, 2); ?><br><small>(<?php echo number_format($itemSgstRate, 1); ?>%)</small></td>
+                            <td class="text-right-col">₹ <?php echo number_format($itemTotal, 2); ?></td>
+                            <td class="text-right-col">₹ <?php echo number_format($itemCGST, 2); ?></td>
+                            <td class="text-right-col">₹ <?php echo number_format($itemSGST, 2); ?></td>
                             <td class="text-right-col">₹ <?php echo number_format($itemAmount, 2); ?></td>
                         </tr>
                     <?php endforeach; ?>
@@ -472,8 +465,8 @@ $amountInWords = numberToWords($bill['grand_total']);
                         <td class="text-center-col"><?php echo number_format($totalQty, 0); ?></td>
                         <td></td>
                         <td class="text-right-col">₹ <?php echo number_format($bill['subtotal'], 2); ?></td>
-                        <td class="text-right-col">₹ <?php echo number_format($totalCgstSum, 2); ?></td>
-                        <td class="text-right-col">₹ <?php echo number_format($totalSgstSum, 2); ?></td>
+                        <td class="text-right-col">₹ <?php echo number_format($bill['cgst_amount'], 2); ?></td>
+                        <td class="text-right-col">₹ <?php echo number_format($bill['sgst_amount'], 2); ?></td>
                         <td class="text-right-col">₹ <?php echo number_format($bill['grand_total'], 2); ?></td>
                     </tr>
                 </tbody>
@@ -483,47 +476,42 @@ $amountInWords = numberToWords($bill['grand_total']);
             <div class="tax-summary-section">
                 <div class="tax-summary-grid">
                     <div>
-                        <div class="section-title">Tax Type Breakdown</div>
+                        <div class="section-title">Tax type</div>
                         <table class="tax-breakdown-table">
                             <thead>
                                 <tr>
                                     <th>Tax Type</th>
                                     <th>Taxable Amount</th>
+                                    <th>Rate</th>
                                     <th>Tax Amount</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td>CGST Total</td>
+                                    <td>SGST</td>
                                     <td class="text-right-col">₹ <?php echo number_format($bill['subtotal'], 2); ?></td>
-                                    <td class="text-right-col">₹ <?php echo number_format($totalCgstSum, 2); ?></td>
+                                    <td class="text-center-col"><?php echo number_format($bill['sgst_rate'], 1); ?>%</td>
+                                    <td class="text-right-col">₹ <?php echo number_format($bill['sgst_amount'], 2); ?></td>
                                 </tr>
                                 <tr>
-                                    <td>SGST Total</td>
+                                    <td>CGST</td>
                                     <td class="text-right-col">₹ <?php echo number_format($bill['subtotal'], 2); ?></td>
-                                    <td class="text-right-col">₹ <?php echo number_format($totalSgstSum, 2); ?></td>
+                                    <td class="text-center-col"><?php echo number_format($bill['cgst_rate'], 1); ?>%</td>
+                                    <td class="text-right-col">₹ <?php echo number_format($bill['cgst_amount'], 2); ?></td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                     
                     <div>
-                        <div class="section-title">Invoice Amounts Summary</div>
+                        <div class="section-title">Amounts</div>
                         <table class="amounts-table">
                             <tr>
-                                <td>Taxable Subtotal</td>
-                                <td class="text-right-col">₹ <?php echo number_format($bill['subtotal'], 2); ?></td>
-                            </tr>
-                            <tr>
-                                <td>Total CGST</td>
-                                <td class="text-right-col">₹ <?php echo number_format($totalCgstSum, 2); ?></td>
-                            </tr>
-                            <tr>
-                                <td>Total SGST</td>
-                                <td class="text-right-col">₹ <?php echo number_format($totalSgstSum, 2); ?></td>
+                                <td>Sub Total</td>
+                                <td class="text-right-col">₹ <?php echo number_format($bill['grand_total'], 2); ?></td>
                             </tr>
                             <tr class="total-row">
-                                <td>Grand Total</td>
+                                <td>Total</td>
                                 <td class="text-right-col">₹ <?php echo number_format($bill['grand_total'], 2); ?></td>
                             </tr>
                         </table>
@@ -557,7 +545,7 @@ $amountInWords = numberToWords($bill['grand_total']);
                             <p style="margin: 0; font-size: 14px;">For : LASEREDGE MEDTECH</p>
 
                             <!-- Signature Image -->
-                            <img src="signature-removebg-preview.png" alt="Signature" style="width: 200px;">
+                            <img src="signature-removebg-preview.png" alt="Signature" style="width: 100px;">
 
                             <div class="signature-line" style="margin-top: 40px; border-top: 1px solid #000; ">
                                 Authorized Signatory

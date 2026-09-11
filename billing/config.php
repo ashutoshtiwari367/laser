@@ -4,48 +4,21 @@
 session_start();
 
 // Database configuration
-$isLive = isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'localhost') === false && strpos($_SERVER['HTTP_HOST'], '127.0.0.1') === false;
-
-if ($isLive) {
-    // Hostinger Live Database Configuration
-    define('DB_HOST', 'localhost');
-    define('DB_USER', 'u447123054_billing_system'); // Hostinger DB Username
-    define('DB_PASS', 'Mu$k@n1106');               // Hostinger DB Password
-    define('DB_NAME', 'u447123054_billing_system'); // Hostinger DB Name
-} else {
-    // Local XAMPP Configuration
-    define('DB_HOST', 'localhost');
-    define('DB_USER', 'root');
-    define('DB_PASS', '');
-    define('DB_NAME', 'billing_system');
-}
+define('DB_HOST', 'localhost');
+define('DB_USER', 'u447123054_billing_system');
+define('DB_PASS', 'Rakesh#123@456');
+define('DB_NAME', 'u447123054_billing_system');
 
 // Create database connection
 function getDBConnection() {
-    mysqli_report(MYSQLI_REPORT_OFF);
-    $conn = @new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-    if (!$conn || $conn->connect_error) {
-        $conn = @new mysqli('127.0.0.1', DB_USER, DB_PASS, DB_NAME);
-    }
-    if (!$conn || $conn->connect_error) {
-        die("Connection failed: " . ($conn ? $conn->connect_error : 'Unable to connect to database'));
+    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+    
+    if ($conn->connect_error) {
+        die("Connection failed: " . $conn->connect_error);
     }
     
     $conn->set_charset("utf8mb4");
-    ensureDatabaseSchema($conn);
     return $conn;
-}
-
-// Auto migration helper for missing per-item GST columns
-function ensureDatabaseSchema($conn) {
-    if (!$conn) return;
-    $res = $conn->query("SHOW COLUMNS FROM bill_items LIKE 'cgst_rate'");
-    if ($res && $res->num_rows == 0) {
-        @$conn->query("ALTER TABLE bill_items ADD COLUMN cgst_rate DECIMAL(5,2) DEFAULT 0.00 AFTER price");
-        @$conn->query("ALTER TABLE bill_items ADD COLUMN cgst_amount DECIMAL(10,2) DEFAULT 0.00 AFTER cgst_rate");
-        @$conn->query("ALTER TABLE bill_items ADD COLUMN sgst_rate DECIMAL(5,2) DEFAULT 0.00 AFTER cgst_amount");
-        @$conn->query("ALTER TABLE bill_items ADD COLUMN sgst_amount DECIMAL(10,2) DEFAULT 0.00 AFTER sgst_rate");
-    }
 }
 
 // Check if user is logged in
@@ -82,29 +55,56 @@ function getCompanySettings() {
     return $settings;
 }
 
-// Generate unique bill number
+// Generate bill number - Financial Year wise reset (INV-001 format)
+// Har saal 1 April ko INV-001 se start hoga automatically
 function generateBillNumber() {
     $conn = getDBConnection();
-    $year = date('Y');
-    $month = date('m');
-    
-    // Get the last bill number for current month
-    $query = "SELECT bill_no FROM bills WHERE bill_no LIKE 'INV-$year$month%' ORDER BY id DESC LIMIT 1";
-    $result = $conn->query($query);
-    
-    if ($result && $result->num_rows > 0) {
-        $row = $result->fetch_assoc();
-        // Extract the last 4 digits and increment
-        $lastNumber = intval(substr($row['bill_no'], -4));
-        $newNumber = $lastNumber + 1;
+
+    // --------------------------------------------------
+    // Current financial year calculate karo
+    // April - March = Indian Financial Year
+    // --------------------------------------------------
+    $month = (int)date('n'); // 1-12
+    $year  = (int)date('Y');
+
+    if ($month >= 4) {
+        // April se December: FY current year se start
+        $fy_start_year = $year;
+        $fy_end_year   = $year + 1;
     } else {
-        $newNumber = 1;
+        // January se March: FY pichle year se start
+        $fy_start_year = $year - 1;
+        $fy_end_year   = $year;
     }
-    
-    $billNo = 'INV-' . $year . $month . str_pad($newNumber, 4, '0', STR_PAD_LEFT);
+
+    $fy_start_date = $fy_start_year . '-04-01'; // e.g. 2025-04-01
+    $fy_end_date   = $fy_end_year   . '-03-31'; // e.g. 2026-03-31
+
+    // --------------------------------------------------
+    // Is financial year ke andar kitne bills hain count karo
+    // Sirf wahi bills jo INV-001 format mein hain (new format)
+    // Purane INV-2025120001 format wale bills count mein nahi aayenge
+    // --------------------------------------------------
+    $stmt = $conn->prepare(
+        "SELECT COUNT(*) as count FROM bills 
+         WHERE bill_date >= ? 
+         AND bill_date <= ? 
+         AND bill_no LIKE 'INV-%'
+         AND LENGTH(bill_no) <= 7"
+    );
+    // INV-001 = 7 characters, INV-999 = 7 characters
+    // Purana format INV-2025120001 = 15 characters, toh woh exclude ho jayega
+
+    $stmt->bind_param("ss", $fy_start_date, $fy_end_date);
+    $stmt->execute();
+    $result = $stmt->get_result()->fetch_assoc();
+
+    $next_number = (int)$result['count'] + 1;
+
     $conn->close();
-    
-    return $billNo;
+
+    // Format: INV-001, INV-002, ... INV-999
+    return 'INV-' . str_pad($next_number, 3, '0', STR_PAD_LEFT);
 }
 
 // Format currency
@@ -127,8 +127,6 @@ function numberToWords($number) {
         '40' => 'Forty', '50' => 'Fifty', '60' => 'Sixty', '70' => 'Seventy',
         '80' => 'Eighty', '90' => 'Ninety'
     );
-    
-    $digits = array('', 'Hundred', 'Thousand', 'Lakh', 'Crore');
     
     $result = '';
     
