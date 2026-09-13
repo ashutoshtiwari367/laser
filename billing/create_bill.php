@@ -23,24 +23,84 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
         $customer_address = sanitize($_POST['customer_address']);
         $is_shipping_same = isset($_POST['is_shipping_same']) ? 1 : 0;
         $shipping_address = $is_shipping_same ? '' : sanitize($_POST['shipping_address']);
-        $subtotal = floatval($_POST['subtotal']);
-        $cgst_rate = floatval($_POST['cgst_rate']);
-        $sgst_rate = floatval($_POST['sgst_rate']);
-        $cgst_amount = floatval($_POST['cgst_amount']);
-        $sgst_amount = floatval($_POST['sgst_amount']);
-        $grand_total = floatval($_POST['grand_total']);
         $payment_status = sanitize($_POST['payment_status']);
         $payment_received = floatval($_POST['payment_received']);
         $notes = sanitize($_POST['notes']);
         
-        // Validate required fields
-        if (empty($bill_no) || empty($bill_date) || empty($customer_name) || $grand_total <= 0) {
-            throw new Exception('Please fill all required fields');
-        }
-        
         // Validate items
         if (!isset($_POST['product_name']) || empty($_POST['product_name'][0])) {
             throw new Exception('Please add at least one item');
+        }
+        
+        $products = $_POST['product_name'];
+        $hsn_codes = $_POST['hsn_code'] ?? [];
+        $quantities = $_POST['quantity'];
+        $units = $_POST['unit'] ?? [];
+        $prices = $_POST['price'];
+        $item_cgst_rates = $_POST['item_cgst_rate'] ?? [];
+        $item_sgst_rates = $_POST['item_sgst_rate'] ?? [];
+        
+        $calc_subtotal = 0;
+        $calc_cgst_amount = 0;
+        $calc_sgst_amount = 0;
+        $first_cgst_rate = 2.50;
+        $first_sgst_rate = 2.50;
+        
+        $itemsToInsert = [];
+        
+        for ($i = 0; $i < count($products); $i++) {
+            if (empty($products[$i])) continue;
+            
+            $product = sanitize($products[$i]);
+            $hsn = sanitize($hsn_codes[$i] ?? '');
+            $quantity = floatval($quantities[$i]);
+            $unit = sanitize($units[$i] ?? 'Qty');
+            $price = floatval($prices[$i]);
+            $icgst_rate = isset($item_cgst_rates[$i]) ? floatval($item_cgst_rates[$i]) : 2.50;
+            $isgst_rate = isset($item_sgst_rates[$i]) ? floatval($item_sgst_rates[$i]) : 2.50;
+            
+            if (empty($itemsToInsert)) {
+                $first_cgst_rate = $icgst_rate;
+                $first_sgst_rate = $isgst_rate;
+            }
+            
+            $taxable = round($quantity * $price, 2);
+            $icgst_amount = round(($taxable * $icgst_rate) / 100, 2);
+            $isgst_amount = round(($taxable * $isgst_rate) / 100, 2);
+            $total = round($taxable + $icgst_amount + $isgst_amount, 2);
+            
+            $calc_subtotal += $taxable;
+            $calc_cgst_amount += $icgst_amount;
+            $calc_sgst_amount += $isgst_amount;
+            
+            $itemsToInsert[] = [
+                'product' => $product,
+                'hsn' => $hsn,
+                'quantity' => $quantity,
+                'unit' => $unit,
+                'price' => $price,
+                'cgst_rate' => $icgst_rate,
+                'cgst_amount' => $icgst_amount,
+                'sgst_rate' => $isgst_rate,
+                'sgst_amount' => $isgst_amount,
+                'total' => $total
+            ];
+        }
+        
+        if (empty($itemsToInsert)) {
+            throw new Exception('Please add at least one valid item');
+        }
+        
+        $subtotal = round($calc_subtotal, 2);
+        $cgst_amount = round($calc_cgst_amount, 2);
+        $sgst_amount = round($calc_sgst_amount, 2);
+        $grand_total = round($subtotal + $cgst_amount + $sgst_amount, 2);
+        $cgst_rate = $subtotal > 0 ? round(($cgst_amount / $subtotal) * 100, 2) : $first_cgst_rate;
+        $sgst_rate = $subtotal > 0 ? round(($sgst_amount / $subtotal) * 100, 2) : $first_sgst_rate;
+        
+        // Validate required fields
+        if (empty($bill_no) || empty($bill_date) || empty($customer_name) || $grand_total <= 0) {
+            throw new Exception('Please fill all required fields');
         }
         
         // Start transaction
@@ -66,40 +126,29 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
         }
         
         // Insert bill items
-        $products = $_POST['product_name'];
-        $hsn_codes = $_POST['hsn_code'];
-        $quantities = $_POST['quantity'];
-        $units = $_POST['unit'];
-        $prices = $_POST['price'];
-        $item_cgst_rates = $_POST['item_cgst_rate'] ?? [];
-        $item_sgst_rates = $_POST['item_sgst_rate'] ?? [];
+        $stmtItem = $conn->prepare("INSERT INTO bill_items (bill_id, product_name, hsn_code, quantity, unit, price, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
         
-        $stmt = $conn->prepare("INSERT INTO bill_items (bill_id, product_name, hsn_code, quantity, unit, price, cgst_rate, cgst_amount, sgst_rate, sgst_amount, total) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-        
-        if (!$stmt) {
+        if (!$stmtItem) {
             throw new Exception('Prepare items failed: ' . $conn->error);
         }
         
-        for ($i = 0; $i < count($products); $i++) {
-            if (empty($products[$i])) continue;
+        foreach ($itemsToInsert as $itemData) {
+            $stmtItem->bind_param("issdsdddddd", 
+                $bill_id, 
+                $itemData['product'], 
+                $itemData['hsn'], 
+                $itemData['quantity'], 
+                $itemData['unit'], 
+                $itemData['price'], 
+                $itemData['cgst_rate'], 
+                $itemData['cgst_amount'], 
+                $itemData['sgst_rate'], 
+                $itemData['sgst_amount'], 
+                $itemData['total']
+            );
             
-            $product = sanitize($products[$i]);
-            $hsn = sanitize($hsn_codes[$i]);
-            $quantity = floatval($quantities[$i]);
-            $unit = sanitize($units[$i]);
-            $price = floatval($prices[$i]);
-            $icgst_rate = isset($item_cgst_rates[$i]) ? floatval($item_cgst_rates[$i]) : 2.50;
-            $isgst_rate = isset($item_sgst_rates[$i]) ? floatval($item_sgst_rates[$i]) : 2.50;
-            
-            $taxable = $quantity * $price;
-            $icgst_amount = ($taxable * $icgst_rate) / 100;
-            $isgst_amount = ($taxable * $isgst_rate) / 100;
-            $total = $taxable + $icgst_amount + $isgst_amount;
-            
-            $stmt->bind_param("issdsdddddd", $bill_id, $product, $hsn, $quantity, $unit, $price, $icgst_rate, $icgst_amount, $isgst_rate, $isgst_amount, $total);
-            
-            if (!$stmt->execute()) {
-                throw new Exception('Execute item failed: ' . $stmt->error);
+            if (!$stmtItem->execute()) {
+                throw new Exception('Execute item failed: ' . $stmtItem->error);
             }
         }
         
@@ -279,48 +328,39 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
             </div>
             
             <div class="card">
-                <div class="card-header">
-                    <h3>Tax & Payment Details</h3>
+                <div class="card-header" style="background: #1e293b; color: white;">
+                    <h3 style="margin: 0; font-size: 16px;">Bill Summary & Payment</h3>
                 </div>
                 <div class="card-body">
-                    <div class="tax-section">
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>Subtotal</label>
-                                <input type="number" id="subtotal" name="subtotal" step="0.01" value="0.00" readonly style="background: #f3f4f6; font-weight: bold;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                        <!-- Left Side: Summary Breakdown -->
+                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #cbd5e1; font-size: 14px;">
+                                <span>Subtotal (Excl. Tax):</span>
+                                <strong id="summary_subtotal">₹0.00</strong>
                             </div>
-                            <div class="form-group">
-                                <label for="cgst_rate">CGST Rate (%) *</label>
-                                <input type="number" id="cgst_rate" name="cgst_rate" step="0.01" min="0" max="100" value="2.50" onchange="calculateTax()" style="background: #fef3c7;">
+                            <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #cbd5e1; font-size: 14px;">
+                                <span>Total CGST:</span>
+                                <strong id="summary_cgst" style="color: #d97706;">+ ₹0.00</strong>
                             </div>
-                            <div class="form-group">
-                                <label>CGST Amount</label>
-                                <input type="number" id="cgst_amount" name="cgst_amount" step="0.01" value="0.00" readonly style="background: #f3f4f6;">
+                            <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #cbd5e1; font-size: 14px;">
+                                <span>Total SGST:</span>
+                                <strong id="summary_sgst" style="color: #d97706;">+ ₹0.00</strong>
                             </div>
-                        </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label>&nbsp;</label>
+                            <div style="display: flex; justify-content: space-between; padding: 10px 0 0 0; font-size: 16px; color: #1e293b;">
+                                <strong>Grand Total (Incl. Tax):</strong>
+                                <strong id="summary_grand_total" style="color: #2563eb; font-size: 18px;">₹0.00</strong>
                             </div>
-                            <div class="form-group">
-                                <label for="sgst_rate">SGST Rate (%) *</label>
-                                <input type="number" id="sgst_rate" name="sgst_rate" step="0.01" min="0" max="100" value="2.50" onchange="calculateTax()" style="background: #fef3c7;">
-                            </div>
-                            <div class="form-group">
-                                <label>SGST Amount</label>
-                                <input type="number" id="sgst_amount" name="sgst_amount" step="0.01" value="0.00" readonly style="background: #f3f4f6;">
+                            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #cbd5e1;">
+                                <span id="amount_in_words" style="color: #059669; font-weight: bold; font-size: 13px;">Amount in Words: Zero Rupees Only</span>
                             </div>
                         </div>
-                        
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="grand_total">Grand Total *</label>
-                                <input type="number" id="grand_total" name="grand_total" step="0.01" value="0.00" readonly required style="background: #dbeafe; font-weight: bold; font-size: 18px;">
-                            </div>
+
+                        <!-- Right Side: Payment Details & Notes -->
+                        <div>
                             <div class="form-group">
                                 <label for="payment_status">Payment Status *</label>
-                                <select id="payment_status" name="payment_status" required>
+                                <select id="payment_status" name="payment_status" required class="form-control">
                                     <option value="Pending">Pending</option>
                                     <option value="Partial">Partial</option>
                                     <option value="Paid">Paid</option>
@@ -328,21 +368,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['save_bill'])) {
                             </div>
                             <div class="form-group">
                                 <label for="payment_received">Payment Received</label>
-                                <input type="number" id="payment_received" name="payment_received" step="0.01" min="0" value="0">
+                                <input type="number" id="payment_received" name="payment_received" step="0.01" min="0" value="0" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="notes">Notes</label>
+                                <textarea id="notes" name="notes" rows="2" class="form-control" placeholder="Optional notes..."></textarea>
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="form-group">
-                        <label id="amount_in_words" style="color: #059669; font-weight: bold; font-size: 14px;">Amount in Words: Zero Rupees Only</label>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="notes">Notes</label>
-                        <textarea id="notes" name="notes" rows="2"></textarea>
-                    </div>
-                    
-                    <div class="form-actions">
+
+                    <!-- Hidden Inputs for Form Submission -->
+                    <input type="hidden" id="subtotal" name="subtotal" value="0.00">
+                    <input type="hidden" id="cgst_rate" name="cgst_rate" value="2.50">
+                    <input type="hidden" id="cgst_amount" name="cgst_amount" value="0.00">
+                    <input type="hidden" id="sgst_rate" name="sgst_rate" value="2.50">
+                    <input type="hidden" id="sgst_amount" name="sgst_amount" value="0.00">
+                    <input type="hidden" id="grand_total" name="grand_total" value="0.00">
+
+                    <div class="form-actions" style="margin-top: 20px;">
                         <button type="button" class="btn btn-secondary" onclick="previewBill()">Preview Bill</button>
                         <button type="submit" name="save_bill" class="btn btn-primary">Save Bill</button>
                     </div>
@@ -554,20 +597,32 @@ document.getElementById('payment_status').addEventListener('change', function() 
             });
             
             const grandTotal = subtotal + totalCgst + totalSgst;
+            const effectiveCgstRate = subtotal > 0 ? ((totalCgst / subtotal) * 100) : firstCgstRate;
+            const effectiveSgstRate = subtotal > 0 ? ((totalSgst / subtotal) * 100) : firstSgstRate;
             
+            // Update UI Summary Elements
+            const subtotalDisp = document.getElementById('subtotal_display');
+            if (subtotalDisp) subtotalDisp.value = '₹' + subtotal.toFixed(2);
+            
+            const summarySubtotal = document.getElementById('summary_subtotal');
+            if (summarySubtotal) summarySubtotal.textContent = '₹' + subtotal.toFixed(2);
+            
+            const summaryCgst = document.getElementById('summary_cgst');
+            if (summaryCgst) summaryCgst.textContent = '+ ₹' + totalCgst.toFixed(2);
+            
+            const summarySgst = document.getElementById('summary_sgst');
+            if (summarySgst) summarySgst.textContent = '+ ₹' + totalSgst.toFixed(2);
+            
+            const summaryGrandTotal = document.getElementById('summary_grand_total');
+            if (summaryGrandTotal) summaryGrandTotal.textContent = '₹' + grandTotal.toFixed(2);
+
+            // Hidden Form Inputs
             document.getElementById('subtotal').value = subtotal.toFixed(2);
-            document.getElementById('subtotal_display').value = '₹' + subtotal.toFixed(2);
             document.getElementById('cgst_amount').value = totalCgst.toFixed(2);
             document.getElementById('sgst_amount').value = totalSgst.toFixed(2);
             document.getElementById('grand_total').value = grandTotal.toFixed(2);
-
-            // Keep global CGST & SGST percentage input boxes in sync with item rows
-            if (!isUpdatingFromGlobal) {
-                const effectiveCgstRate = subtotal > 0 ? ((totalCgst / subtotal) * 100) : firstCgstRate;
-                const effectiveSgstRate = subtotal > 0 ? ((totalSgst / subtotal) * 100) : firstSgstRate;
-                document.getElementById('cgst_rate').value = effectiveCgstRate.toFixed(2);
-                document.getElementById('sgst_rate').value = effectiveSgstRate.toFixed(2);
-            }
+            document.getElementById('cgst_rate').value = effectiveCgstRate.toFixed(2);
+            document.getElementById('sgst_rate').value = effectiveSgstRate.toFixed(2);
             
             updateAmountInWords(grandTotal);
         }
