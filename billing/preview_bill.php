@@ -62,7 +62,6 @@ elseif (isset($_GET['id'])) {
         $bill = $result->fetch_assoc();
         
         // Set default tax values if not exist
-        if (!isset($bill['subtotal'])) $bill['subtotal'] = $bill['grand_total'];
         if (!isset($bill['cgst_rate'])) $bill['cgst_rate'] = 2.5;
         if (!isset($bill['sgst_rate'])) $bill['sgst_rate'] = 2.5;
         if (!isset($bill['cgst_amount'])) $bill['cgst_amount'] = 0;
@@ -89,6 +88,39 @@ elseif (isset($_GET['id'])) {
 if (!$bill) {
     echo '<script>alert("Bill not found!"); window.location.href="dashboard.php";</script>';
     exit();
+}
+
+// Dynamically recalculate tax values for items and bill if tax/subtotal was missing or zero
+$calcSubtotal = 0;
+$calcCgst = 0;
+$calcSgst = 0;
+
+foreach ($items as &$item) {
+    $taxable = floatval($item['quantity']) * floatval($item['price']);
+    $itemCgstRate = (isset($item['cgst_rate']) && floatval($item['cgst_rate']) > 0) ? floatval($item['cgst_rate']) : floatval($bill['cgst_rate'] ?? 2.5);
+    $itemSgstRate = (isset($item['sgst_rate']) && floatval($item['sgst_rate']) > 0) ? floatval($item['sgst_rate']) : floatval($bill['sgst_rate'] ?? 2.5);
+    
+    $itemCgstAmt = (isset($item['cgst_amount']) && floatval($item['cgst_amount']) > 0) ? floatval($item['cgst_amount']) : (($taxable * $itemCgstRate) / 100);
+    $itemSgstAmt = (isset($item['sgst_amount']) && floatval($item['sgst_amount']) > 0) ? floatval($item['sgst_amount']) : (($taxable * $itemSgstRate) / 100);
+    
+    $item['cgst_rate'] = $itemCgstRate;
+    $item['sgst_rate'] = $itemSgstRate;
+    $item['cgst_amount'] = $itemCgstAmt;
+    $item['sgst_amount'] = $itemSgstAmt;
+    $item['total'] = $taxable + $itemCgstAmt + $itemSgstAmt;
+    
+    $calcSubtotal += $taxable;
+    $calcCgst += $itemCgstAmt;
+    $calcSgst += $itemSgstAmt;
+}
+unset($item);
+
+// If bill subtotal or cgst_amount was 0 or subtotal == grand_total (old bill issue), override bill values
+if (empty($bill['subtotal']) || floatval($bill['cgst_amount']) == 0 || floatval($bill['subtotal']) == floatval($bill['grand_total'])) {
+    $bill['subtotal'] = $calcSubtotal;
+    $bill['cgst_amount'] = $calcCgst;
+    $bill['sgst_amount'] = $calcSgst;
+    $bill['grand_total'] = $calcSubtotal + $calcCgst + $calcSgst;
 }
 
 $amountInWords = numberToWords($bill['grand_total']);

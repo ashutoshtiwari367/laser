@@ -168,11 +168,12 @@ if ($result->num_rows == 0) {
 $bill = $result->fetch_assoc();
 
 // Set default values for old bills
-if (!isset($bill['subtotal']) || $bill['subtotal'] == 0) {
-    $bill['subtotal'] = $bill['grand_total'];
+if (empty($bill['cgst_rate']) || floatval($bill['cgst_rate']) == 0) {
+    $bill['cgst_rate'] = (isset($companySettings['cgst_rate']) && floatval($companySettings['cgst_rate']) > 0) ? floatval($companySettings['cgst_rate']) : 2.50;
 }
-if (!isset($bill['cgst_rate'])) $bill['cgst_rate'] = $companySettings['cgst_rate'];
-if (!isset($bill['sgst_rate'])) $bill['sgst_rate'] = $companySettings['sgst_rate'];
+if (empty($bill['sgst_rate']) || floatval($bill['sgst_rate']) == 0) {
+    $bill['sgst_rate'] = (isset($companySettings['sgst_rate']) && floatval($companySettings['sgst_rate']) > 0) ? floatval($companySettings['sgst_rate']) : 2.50;
+}
 if (!isset($bill['cgst_amount'])) $bill['cgst_amount'] = 0;
 if (!isset($bill['sgst_amount'])) $bill['sgst_amount'] = 0;
 if (!isset($bill['customer_id_type'])) $bill['customer_id_type'] = 'none';
@@ -193,8 +194,8 @@ $items = [];
 while ($row = $result->fetch_assoc()) {
     if (!isset($row['hsn_code'])) $row['hsn_code'] = '';
     if (!isset($row['unit'])) $row['unit'] = 'Qty';
-    if (!isset($row['cgst_rate'])) $row['cgst_rate'] = $bill['cgst_rate'] ?? 2.50;
-    if (!isset($row['sgst_rate'])) $row['sgst_rate'] = $bill['sgst_rate'] ?? 2.50;
+    if (empty($row['cgst_rate']) || floatval($row['cgst_rate']) == 0) $row['cgst_rate'] = $bill['cgst_rate'];
+    if (empty($row['sgst_rate']) || floatval($row['sgst_rate']) == 0) $row['sgst_rate'] = $bill['sgst_rate'];
     $items[] = $row;
 }
 

@@ -102,6 +102,60 @@ foreach ($companyColumns as $columnName => $alterQuery) {
     }
 }
 
+// 4. Recalculate CGST, SGST & Subtotal for all existing/old bills
+echo "<h3>4. Recalculating & Backfilling CGST, SGST & Subtotal for Old Bills:</h3>";
+
+$billsResult = $conn->query("SELECT * FROM bills");
+$updatedBillsCount = 0;
+
+if ($billsResult && $billsResult->num_rows > 0) {
+    while ($bill = $billsResult->fetch_assoc()) {
+        $billId = $bill['id'];
+        $billCgstRate = (isset($bill['cgst_rate']) && floatval($bill['cgst_rate']) > 0) ? floatval($bill['cgst_rate']) : 2.50;
+        $billSgstRate = (isset($bill['sgst_rate']) && floatval($bill['sgst_rate']) > 0) ? floatval($bill['sgst_rate']) : 2.50;
+
+        $itemsResult = $conn->query("SELECT * FROM bill_items WHERE bill_id = $billId");
+        
+        $calcSubtotal = 0;
+        $calcCgstTotal = 0;
+        $calcSgstTotal = 0;
+
+        if ($itemsResult && $itemsResult->num_rows > 0) {
+            while ($item = $itemsResult->fetch_assoc()) {
+                $itemId = $item['id'];
+                $qty = floatval($item['quantity']);
+                $price = floatval($item['price']);
+                $itemTaxable = $qty * $price;
+
+                $itemCgstRate = (isset($item['cgst_rate']) && floatval($item['cgst_rate']) > 0) ? floatval($item['cgst_rate']) : $billCgstRate;
+                $itemSgstRate = (isset($item['sgst_rate']) && floatval($item['sgst_rate']) > 0) ? floatval($item['sgst_rate']) : $billSgstRate;
+
+                $itemCgstAmt = ($itemTaxable * $itemCgstRate) / 100;
+                $itemSgstAmt = ($itemTaxable * $itemSgstRate) / 100;
+                $itemTotal = $itemTaxable + $itemCgstAmt + $itemSgstAmt;
+
+                $calcSubtotal += $itemTaxable;
+                $calcCgstTotal += $itemCgstAmt;
+                $calcSgstTotal += $itemSgstAmt;
+
+                // Update item in DB
+                $stmtItem = $conn->prepare("UPDATE bill_items SET cgst_rate = ?, cgst_amount = ?, sgst_rate = ?, sgst_amount = ?, total = ? WHERE id = ?");
+                $stmtItem->bind_param("dddddi", $itemCgstRate, $itemCgstAmt, $itemSgstRate, $itemSgstAmt, $itemTotal, $itemId);
+                $stmtItem->execute();
+            }
+        }
+
+        $calcGrandTotal = $calcSubtotal + $calcCgstTotal + $calcSgstTotal;
+
+        // Update bill in DB
+        $stmtBill = $conn->prepare("UPDATE bills SET subtotal = ?, cgst_rate = ?, cgst_amount = ?, sgst_rate = ?, sgst_amount = ?, grand_total = ? WHERE id = ?");
+        $stmtBill->bind_param("ddddddi", $calcSubtotal, $billCgstRate, $calcCgstTotal, $billSgstRate, $calcSgstTotal, $calcGrandTotal, $billId);
+        $stmtBill->execute();
+        $updatedBillsCount++;
+    }
+    echo "<p style='color: green;'>✅ Successfully recalculated CGST, SGST & Subtotal for $updatedBillsCount old bills and all associated items!</p>";
+}
+
 // Show current table structure
 echo "<h3>Current Database Structure:</h3>";
 
@@ -123,7 +177,7 @@ if ($result) {
     echo "<table border='1' style='border-collapse: collapse; width: 100%; font-size: 13px;'>";
     echo "<tr style='background: #f3f4f6;'><th>Field</th><th>Type</th><th>Null</th><th>Default</th></tr>";
     while ($row = $result->fetch_assoc()) {
-        $highlight = in_array($row['Field'], ['hsn_code', 'unit']) ? 'background: #d1fae5;' : '';
+        $highlight = in_array($row['Field'], ['hsn_code', 'unit', 'cgst_rate', 'cgst_amount', 'sgst_rate', 'sgst_amount']) ? 'background: #d1fae5;' : '';
         echo "<tr style='$highlight'><td>{$row['Field']}</td><td>{$row['Type']}</td><td>{$row['Null']}</td><td>{$row['Default']}</td></tr>";
     }
     echo "</table>";
@@ -132,7 +186,7 @@ if ($result) {
 $conn->close();
 
 echo "<hr>";
-echo "<h3 style='color: green;'>✅ Database Update Complete!</h3>";
-echo "<p><strong>You can now create bills with customer ID (GSTIN/Aadhaar) and tax calculations smoothly.</strong></p>";
+echo "<h3 style='color: green;'>✅ Database Update & Old Bills Recalculation Complete!</h3>";
+echo "<p><strong>All old and new bills now have correct CGST, SGST, Subtotal, and Grand Total values stored.</strong></p>";
 echo "<p><a href='create_bill.php' style='padding: 10px 20px; background: #2563eb; color: white; text-decoration: none; border-radius: 5px;'>Go to Create Bill</a></p>";
 ?>
