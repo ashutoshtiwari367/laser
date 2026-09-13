@@ -441,7 +441,10 @@ document.getElementById('payment_status').addEventListener('change', function() 
             });
         }
         
+        let isUpdatingFromGlobal = false;
+
         function updateAllItemTaxRates() {
+            isUpdatingFromGlobal = true;
             const globalCgst = document.getElementById('cgst_rate').value || '2.50';
             const globalSgst = document.getElementById('sgst_rate').value || '2.50';
             document.querySelectorAll('.item-cgst-rate').forEach(input => {
@@ -454,6 +457,7 @@ document.getElementById('payment_status').addEventListener('change', function() 
                 const qtyInput = row.querySelector('.quantity');
                 if (qtyInput) calculateTotal(qtyInput);
             });
+            isUpdatingFromGlobal = false;
         }
         
         function addItem() {
@@ -524,6 +528,9 @@ document.getElementById('payment_status').addEventListener('change', function() 
             let subtotal = 0;
             let totalCgst = 0;
             let totalSgst = 0;
+            let firstCgstRate = 2.50;
+            let firstSgstRate = 2.50;
+            let isFirstRow = true;
             
             document.querySelectorAll('.item-row').forEach(row => {
                 const quantity = parseFloat(row.querySelector('.quantity').value) || 0;
@@ -531,6 +538,12 @@ document.getElementById('payment_status').addEventListener('change', function() 
                 const cgstRate = parseFloat(row.querySelector('.item-cgst-rate').value) || 0;
                 const sgstRate = parseFloat(row.querySelector('.item-sgst-rate').value) || 0;
                 
+                if (isFirstRow) {
+                    firstCgstRate = cgstRate;
+                    firstSgstRate = sgstRate;
+                    isFirstRow = false;
+                }
+
                 const taxable = quantity * price;
                 const cgstAmt = (taxable * cgstRate) / 100;
                 const sgstAmt = (taxable * sgstRate) / 100;
@@ -547,6 +560,14 @@ document.getElementById('payment_status').addEventListener('change', function() 
             document.getElementById('cgst_amount').value = totalCgst.toFixed(2);
             document.getElementById('sgst_amount').value = totalSgst.toFixed(2);
             document.getElementById('grand_total').value = grandTotal.toFixed(2);
+
+            // Keep global CGST & SGST percentage input boxes in sync with item rows
+            if (!isUpdatingFromGlobal) {
+                const effectiveCgstRate = subtotal > 0 ? ((totalCgst / subtotal) * 100) : firstCgstRate;
+                const effectiveSgstRate = subtotal > 0 ? ((totalSgst / subtotal) * 100) : firstSgstRate;
+                document.getElementById('cgst_rate').value = effectiveCgstRate.toFixed(2);
+                document.getElementById('sgst_rate').value = effectiveSgstRate.toFixed(2);
+            }
             
             updateAmountInWords(grandTotal);
         }
