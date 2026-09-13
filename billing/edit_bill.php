@@ -114,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_bill'])) {
             throw new Exception('Prepare failed: ' . $conn->error);
         }
         
-        $stmt->bind_param("sssssssssiddddddsdsi", 
+        $stmt->bind_param("ssssssssiddddddsdsi", 
             $bill_date, 
             $customer_name, 
             $customer_phone, 
@@ -641,10 +641,10 @@ document.getElementById('payment_status').addEventListener('change', function() 
             const cgstRate = parseFloat(row.querySelector('.item-cgst-rate').value) || 0;
             const sgstRate = parseFloat(row.querySelector('.item-sgst-rate').value) || 0;
             
-            const taxable = quantity * price;
-            const cgstAmt = (taxable * cgstRate) / 100;
-            const sgstAmt = (taxable * sgstRate) / 100;
-            const total = taxable + cgstAmt + sgstAmt;
+            const taxable = Math.round(quantity * price * 100) / 100;
+            const cgstAmt = Math.round(((taxable * cgstRate) / 100) * 100) / 100;
+            const sgstAmt = Math.round(((taxable * sgstRate) / 100) * 100) / 100;
+            const total = Math.round((taxable + cgstAmt + sgstAmt) * 100) / 100;
             
             row.querySelector('.total').value = total.toFixed(2);
             calculateSubtotal();
@@ -658,6 +658,8 @@ document.getElementById('payment_status').addEventListener('change', function() 
             let firstSgstRate = 2.50;
             let isFirstRow = true;
             
+            let taxGroups = {};
+
             document.querySelectorAll('.item-row').forEach(row => {
                 const quantity = parseFloat(row.querySelector('.quantity').value) || 0;
                 const price = parseFloat(row.querySelector('.price').value) || 0;
@@ -670,14 +672,55 @@ document.getElementById('payment_status').addEventListener('change', function() 
                     isFirstRow = false;
                 }
 
-                const taxable = quantity * price;
-                const cgstAmt = (taxable * cgstRate) / 100;
-                const sgstAmt = (taxable * sgstRate) / 100;
+                const taxable = Math.round(quantity * price * 100) / 100;
+                const cgstAmt = Math.round(((taxable * cgstRate) / 100) * 100) / 100;
+                const sgstAmt = Math.round(((taxable * sgstRate) / 100) * 100) / 100;
                 
                 subtotal += taxable;
                 totalCgst += cgstAmt;
                 totalSgst += sgstAmt;
+
+                const sgstKey = sgstRate.toFixed(2);
+                const cgstKey = cgstRate.toFixed(2);
+
+                if (!taxGroups[sgstKey]) {
+                    taxGroups[sgstKey] = { rate: sgstRate, sgstTaxable: 0, sgstAmt: 0, cgstTaxable: 0, cgstAmt: 0 };
+                }
+                if (!taxGroups[cgstKey]) {
+                    taxGroups[cgstKey] = { rate: cgstRate, sgstTaxable: 0, sgstAmt: 0, cgstTaxable: 0, cgstAmt: 0 };
+                }
+
+                taxGroups[sgstKey].sgstTaxable += taxable;
+                taxGroups[sgstKey].sgstAmt += sgstAmt;
+                taxGroups[cgstKey].cgstTaxable += taxable;
+                taxGroups[cgstKey].cgstAmt += cgstAmt;
             });
+
+            let itemBreakdownHtml = '';
+            const sortedRates = Object.keys(taxGroups).sort((a, b) => parseFloat(a) - parseFloat(b));
+
+            sortedRates.forEach(rateStr => {
+                const group = taxGroups[rateStr];
+                if (group.sgstTaxable > 0 || group.sgstAmt > 0) {
+                    itemBreakdownHtml += `
+                        <div style="display: flex; justify-content: space-between; padding: 3px 0 1px 8px; font-size: 12px; color: #475569;">
+                            <span>SGST (${group.rate}%):</span>
+                            <strong style="color: #d97706;">+ ₹${group.sgstAmt.toFixed(2)}</strong>
+                        </div>
+                    `;
+                }
+                if (group.cgstTaxable > 0 || group.cgstAmt > 0) {
+                    itemBreakdownHtml += `
+                        <div style="display: flex; justify-content: space-between; padding: 1px 0 3px 8px; border-bottom: 1px dashed #cbd5e1; font-size: 12px; color: #475569;">
+                            <span>CGST (${group.rate}%):</span>
+                            <strong style="color: #d97706;">+ ₹${group.cgstAmt.toFixed(2)}</strong>
+                        </div>
+                    `;
+                }
+            });
+            
+            const breakdownContainer = document.getElementById('item_tax_breakdown_list');
+            if (breakdownContainer) breakdownContainer.innerHTML = itemBreakdownHtml;
             
             const grandTotal = subtotal + totalCgst + totalSgst;
             const effectiveCgstRate = subtotal > 0 ? ((totalCgst / subtotal) * 100) : firstCgstRate;

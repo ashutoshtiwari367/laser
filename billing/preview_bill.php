@@ -513,18 +513,52 @@ $amountInWords = numberToWords($bill['grand_total']);
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr>
-                                    <td>SGST</td>
-                                    <td class="text-right-col">₹ <?php echo number_format($bill['subtotal'], 2); ?></td>
-                                    <td class="text-center-col"><?php echo number_format($bill['sgst_rate'], 1); ?>%</td>
-                                    <td class="text-right-col">₹ <?php echo number_format($bill['sgst_amount'], 2); ?></td>
-                                </tr>
-                                <tr>
-                                    <td>CGST</td>
-                                    <td class="text-right-col">₹ <?php echo number_format($bill['subtotal'], 2); ?></td>
-                                    <td class="text-center-col"><?php echo number_format($bill['cgst_rate'], 1); ?>%</td>
-                                    <td class="text-right-col">₹ <?php echo number_format($bill['cgst_amount'], 2); ?></td>
-                                </tr>
+                                <?php 
+                                $taxGroups = [];
+                                foreach ($items as $item) {
+                                    $itemTaxable = round(floatval($item['quantity']) * floatval($item['price']), 2);
+                                    $itemCgstRate = isset($item['cgst_rate']) ? floatval($item['cgst_rate']) : floatval($bill['cgst_rate'] ?? 2.5);
+                                    $itemSgstRate = isset($item['sgst_rate']) ? floatval($item['sgst_rate']) : floatval($bill['sgst_rate'] ?? 2.5);
+                                    
+                                    $itemCgstAmt = (isset($item['cgst_amount']) && floatval($item['cgst_amount']) > 0) ? floatval($item['cgst_amount']) : round(($itemTaxable * $itemCgstRate) / 100, 2);
+                                    $itemSgstAmt = (isset($item['sgst_amount']) && floatval($item['sgst_amount']) > 0) ? floatval($item['sgst_amount']) : round(($itemTaxable * $itemSgstRate) / 100, 2);
+                                    
+                                    $sgstKey = number_format($itemSgstRate, 2, '.', '');
+                                    $cgstKey = number_format($itemCgstRate, 2, '.', '');
+                                    
+                                    if (!isset($taxGroups[$sgstKey])) {
+                                        $taxGroups[$sgstKey] = ['rate' => $itemSgstRate, 'sgst_taxable' => 0, 'sgst_amt' => 0, 'cgst_taxable' => 0, 'cgst_amt' => 0];
+                                    }
+                                    if (!isset($taxGroups[$cgstKey])) {
+                                        $taxGroups[$cgstKey] = ['rate' => $itemCgstRate, 'sgst_taxable' => 0, 'sgst_amt' => 0, 'cgst_taxable' => 0, 'cgst_amt' => 0];
+                                    }
+                                    
+                                    $taxGroups[$sgstKey]['sgst_taxable'] += $itemTaxable;
+                                    $taxGroups[$sgstKey]['sgst_amt'] += $itemSgstAmt;
+                                    $taxGroups[$cgstKey]['cgst_taxable'] += $itemTaxable;
+                                    $taxGroups[$cgstKey]['cgst_amt'] += $itemCgstAmt;
+                                }
+                                ksort($taxGroups, SORT_NUMERIC);
+
+                                foreach ($taxGroups as $group):
+                                ?>
+                                    <?php if ($group['sgst_taxable'] > 0 || $group['sgst_amt'] > 0): ?>
+                                    <tr>
+                                        <td>SGST (<?php echo floatval($group['rate']); ?>%)</td>
+                                        <td class="text-right-col">₹ <?php echo number_format($group['sgst_taxable'], 2); ?></td>
+                                        <td class="text-center-col"><?php echo number_format($group['rate'], 1); ?>%</td>
+                                        <td class="text-right-col">₹ <?php echo number_format($group['sgst_amt'], 2); ?></td>
+                                    </tr>
+                                    <?php endif; ?>
+                                    <?php if ($group['cgst_taxable'] > 0 || $group['cgst_amt'] > 0): ?>
+                                    <tr>
+                                        <td>CGST (<?php echo floatval($group['rate']); ?>%)</td>
+                                        <td class="text-right-col">₹ <?php echo number_format($group['cgst_taxable'], 2); ?></td>
+                                        <td class="text-center-col"><?php echo number_format($group['rate'], 1); ?>%</td>
+                                        <td class="text-right-col">₹ <?php echo number_format($group['cgst_amt'], 2); ?></td>
+                                    </tr>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
                             </tbody>
                         </table>
                     </div>
