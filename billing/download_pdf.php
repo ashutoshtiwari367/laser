@@ -108,16 +108,13 @@ header('Content-Type: text/html; charset=utf-8');
         }
         
         .professional-invoice {
-            width: 206mm;
-            max-height: 293mm;
-            margin: 10px auto;
+            width: 200mm;
+            margin: 0 auto;
             background: white;
             padding: 0;
             border: 2px solid #000;
             box-sizing: border-box;
-            overflow: hidden;
-            page-break-after: avoid;
-            page-break-inside: avoid;
+            page-break-after: auto;
         }
         
         .invoice-header-section {
@@ -188,10 +185,9 @@ header('Content-Type: text/html; charset=utf-8');
             min-width: 100px;
         }
         
-        /* FIXED HEIGHT PRODUCT TABLE */
+        /* PRODUCT TABLE CONTAINER */
         .product-table-container {
-            height: 440px;
-            overflow: hidden;
+            width: 100%;
             border-bottom: 2px solid #000;
         }
         
@@ -250,6 +246,16 @@ header('Content-Type: text/html; charset=utf-8');
         
         .text-center-col {
             text-align: center;
+        }
+        
+        .tax-summary-section, .amount-in-words-section, .terms-bank-section {
+            page-break-inside: avoid;
+            break-inside: avoid;
+        }
+        
+        tr {
+            page-break-inside: avoid;
+            break-inside: avoid;
         }
         
         .tax-summary-section {
@@ -432,12 +438,12 @@ header('Content-Type: text/html; charset=utf-8');
             }
 
             const opt = {
-                margin:       [0, 0, 0, 0],
+                margin:       [3, 3, 3, 3],
                 filename:     'Invoice-<?php echo $bill['bill_no']; ?>.pdf',
                 image:        { type: 'jpeg', quality: 0.98 },
                 html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak:    { mode: ['avoid-all'] }
+                pagebreak:    { mode: ['css', 'legacy'] }
             };
 
             html2pdf().set(opt).from(element).save().then(function() {
@@ -562,11 +568,9 @@ header('Content-Type: text/html; charset=utf-8');
                     <?php 
                     $sno = 1;
                     $totalQty = 0;
-                    $maxRows = 15;
+                    $totalItemsCount = count($items);
                     
                     foreach ($items as $item): 
-                        if ($sno > $maxRows) break;
-                        
                         $itemTotal = floatval($item['quantity']) * floatval($item['price']);
                         $itemCgstRate = isset($item['cgst_rate']) ? floatval($item['cgst_rate']) : floatval($bill['cgst_rate']);
                         $itemSgstRate = isset($item['sgst_rate']) ? floatval($item['sgst_rate']) : floatval($bill['sgst_rate']);
@@ -575,10 +579,9 @@ header('Content-Type: text/html; charset=utf-8');
                         $itemAmount = $itemTotal + $itemCGST + $itemSGST;
                         $totalQty += $item['quantity'];
                         
-                        // Truncate product name to 40 characters
                         $productName = $item['product_name'];
-                        if (strlen($productName) > 40) {
-                            $productName = substr($productName, 0, 40) . '...';
+                        if (strlen($productName) > 45) {
+                            $productName = substr($productName, 0, 45) . '...';
                         }
                     ?>
                         <tr>
@@ -595,10 +598,10 @@ header('Content-Type: text/html; charset=utf-8');
                     <?php endforeach; ?>
                     
                     <?php 
-                    // Fill empty rows to maintain fixed table height
-                    $actualRows = min(count($items), $maxRows);
-                    $emptyRows = $maxRows - $actualRows;
-                    for ($i = 0; $i < $emptyRows; $i++): 
+                    // If 10 or fewer items, pad empty rows up to 10 for balanced single-page layout
+                    if ($totalItemsCount <= 10) {
+                        $emptyRows = 10 - $totalItemsCount;
+                        for ($i = 0; $i < $emptyRows; $i++): 
                     ?>
                         <tr class="empty-row">
                             <td class="text-center-col">&nbsp;</td>
@@ -611,7 +614,10 @@ header('Content-Type: text/html; charset=utf-8');
                             <td class="text-right-col">&nbsp;</td>
                             <td class="text-right-col">&nbsp;</td>
                         </tr>
-                    <?php endfor; ?>
+                    <?php 
+                        endfor; 
+                    }
+                    ?>
                     
                     <tr style="font-weight: bold; background: #f8f9fa;">
                         <td colspan="3" class="text-right-col">Total</td>

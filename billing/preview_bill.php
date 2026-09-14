@@ -134,10 +134,21 @@ $amountInWords = numberToWords($bill['grand_total']);
     <link rel="stylesheet" href="style.css">
     <style>
         @media print {
+            @page {
+                size: A4 portrait;
+                margin: 5mm;
+            }
+            body {
+                margin: 0;
+                padding: 0;
+                background: white;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
             body * { visibility: hidden; }
             .bill-preview, .bill-preview * { visibility: visible; }
-            .bill-preview { position: absolute; left: 0; top: 0; width: 100%; }
-            .no-print { display: none !important; }
+            .bill-preview { position: absolute; left: 0; top: 0; width: 100% !important; margin: 0 !important; }
+            .no-print, .page-header { display: none !important; }
         }
         
         .professional-invoice {
@@ -146,6 +157,7 @@ $amountInWords = numberToWords($bill['grand_total']);
             background: white;
             padding: 0;
             border: 2px solid #000;
+            box-sizing: border-box;
         }
         
         .invoice-header-section {
@@ -465,6 +477,8 @@ $amountInWords = numberToWords($bill['grand_total']);
                     <?php 
                     $sno = 1;
                     $totalQty = 0;
+                    $totalItemsCount = count($items);
+
                     foreach ($items as $item): 
                         $itemTotal = floatval($item['quantity']) * floatval($item['price']);
                         $itemCgstRate = isset($item['cgst_rate']) ? floatval($item['cgst_rate']) : floatval($bill['cgst_rate']);
@@ -486,6 +500,28 @@ $amountInWords = numberToWords($bill['grand_total']);
                             <td class="text-right-col">₹ <?php echo number_format($itemAmount, 2); ?></td>
                         </tr>
                     <?php endforeach; ?>
+
+                    <?php 
+                    // Pad empty rows up to 10 for clean single-page invoice layout
+                    if ($totalItemsCount <= 10) {
+                        $emptyRows = 10 - $totalItemsCount;
+                        for ($i = 0; $i < $emptyRows; $i++): 
+                    ?>
+                        <tr style="height: 24px;">
+                            <td class="text-center-col">&nbsp;</td>
+                            <td>&nbsp;</td>
+                            <td class="text-center-col">-</td>
+                            <td class="text-center-col">&nbsp;</td>
+                            <td class="text-right-col">&nbsp;</td>
+                            <td class="text-right-col">&nbsp;</td>
+                            <td class="text-right-col">&nbsp;</td>
+                            <td class="text-right-col">&nbsp;</td>
+                            <td class="text-right-col">&nbsp;</td>
+                        </tr>
+                    <?php 
+                        endfor; 
+                    }
+                    ?>
                     <tr style="font-weight: bold; background: #f8f9fa;">
                         <td colspan="3" class="text-right-col">Total</td>
                         <td class="text-center-col"><?php echo number_format($totalQty, 0); ?></td>
