@@ -739,7 +739,7 @@ header('Content-Type: text/html; charset=utf-8');
                         </td>
                         <td style="vertical-align: middle; text-align: center; width: 360px; border: none; padding: 0 0 0 8px;">
                             <div style="display: inline-block; text-align: center;">
-                                <img src="bank-qr-code.png" alt="Scan to Pay QR Code" style="width: 160px; height: 160px; border: 1px solid #ddd; padding: 2px; background: #fff; border-radius: 3px; display: block; margin: 0 auto;">
+                                <img src="bank-qr-code.png" alt="Scan to Pay QR Code" style="width: 380px; height: 380px; border: 1px solid #ddd; padding: 2px; background: #fff; border-radius: 3px; display: block; margin: 0 auto;">
                                 <span style="font-size: 10px; font-weight: bold; color: #333; display: block; margin-top: 4px;">Scan to Pay</span>
                             </div>
                         </td>
