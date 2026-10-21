@@ -636,10 +636,10 @@ $amountInWords = numberToWords($bill['grand_total']);
                                         <div class="detail-row"><strong>IFSC:</strong> UTIB0005290</div>
                                         <div class="detail-row"><strong>CITY:</strong> Kanpur, Uttar Pradesh </div>
                                     </td>
-                                    <td style="vertical-align: middle; text-align: center; width: 110px; border: none; padding: 0 0 0 12px;">
+                                    <td style="vertical-align: middle; text-align: center; width: 180px; border: none; padding: 0 0 0 12px;">
                                         <div style="display: inline-block; text-align: center;">
-                                            <img src="bank-qr-code.png" alt="Scan to Pay QR Code" style="width: 95px; height: 95px; border: 1px solid #ccc; padding: 3px; background: #fff; border-radius: 4px; display: block; margin: 0 auto; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
-                                            <span style="font-size: 11px; font-weight: bold; color: #333; display: block; margin-top: 4px;">Scan to Pay</span>
+                                            <img src="bank-qr-code.png" alt="Scan to Pay QR Code" style="width: 170px; height: 170px; border: 1px solid #ccc; padding: 4px; background: #fff; border-radius: 4px; display: block; margin: 0 auto; box-shadow: 0 1px 3px rgba(0,0,0,0.08);">
+                                            <span style="font-size: 12px; font-weight: bold; color: #333; display: block; margin-top: 5px;">Scan to Pay</span>
                                         </div>
                                     </td>
                                 </tr>
