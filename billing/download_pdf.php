@@ -349,6 +349,9 @@ header('Content-Type: text/html; charset=utf-8');
         }
         
         .signature-section {
+            display: table-cell;
+            width: 50%;
+            vertical-align: top;
             padding: 20px 15px 15px;
             text-align: right;
             position: relative;
@@ -723,16 +726,25 @@ header('Content-Type: text/html; charset=utf-8');
         <!-- Terms and Bank Details -->
         <div class="terms-bank-section">
             <div class="terms-box">
-                <div class="section-title">Terms and Conditions</div>
-
                 <div class="section-title">OUR BANK DETAILS</div>
-                <div class="detail-row"><strong>NAME:</strong> Laseredge Medtech</div>
-                <div class="detail-row"><strong>BANK:</strong> AXIS BANK</div>
-                <div class="detail-row"><strong>BRANCH:</strong> Indira Nagar</div>
-                <div class="detail-row"><strong>AC NO:</strong> 925020011859257</div>
-                <div class="detail-row"><strong>IFSC:</strong> UTIB0005290</div>
-                <div class="detail-row"><strong>CITY:</strong> Kanpur, Uttar Pradesh </div>
-
+                <table class="bank-details-layout" style="width: 100%; border-collapse: collapse; border: none; margin: 0; padding: 0;">
+                    <tr>
+                        <td style="vertical-align: top; border: none; padding: 0;">
+                            <div class="detail-row"><strong>NAME:</strong> Laseredge Medtech</div>
+                            <div class="detail-row"><strong>BANK:</strong> AXIS BANK</div>
+                            <div class="detail-row"><strong>BRANCH:</strong> Indira Nagar</div>
+                            <div class="detail-row"><strong>AC NO:</strong> 925020011859257</div>
+                            <div class="detail-row"><strong>IFSC:</strong> UTIB0005290</div>
+                            <div class="detail-row"><strong>CITY:</strong> Kanpur, Uttar Pradesh </div>
+                        </td>
+                        <td style="vertical-align: middle; text-align: center; width: 95px; border: none; padding: 0 0 0 10px;">
+                            <div style="display: inline-block; text-align: center;">
+                                <img src="bank-qr-code.png" alt="Scan to Pay QR Code" style="width: 85px; height: 85px; border: 1px solid #ccc; padding: 2px; background: #fff; border-radius: 3px; display: block; margin: 0 auto;">
+                                <span style="font-size: 9px; font-weight: bold; color: #333; display: block; margin-top: 3px;">Scan to Pay</span>
+                            </div>
+                        </td>
+                    </tr>
+                </table>
             </div>
 
 
