@@ -335,7 +335,7 @@ header('Content-Type: text/html; charset=utf-8');
         
         .terms-box {
             display: table-cell;
-            width: 50%;
+            width: 62%;
             padding: 12px 15px;
             border-right: 2px solid #000;
             vertical-align: top;
@@ -350,7 +350,7 @@ header('Content-Type: text/html; charset=utf-8');
         
         .signature-section {
             display: table-cell;
-            width: 50%;
+            width: 38%;
             vertical-align: top;
             padding: 20px 15px 15px;
             text-align: right;
@@ -432,9 +432,20 @@ header('Content-Type: text/html; charset=utf-8');
     <!-- Include html2pdf.js for client-side direct PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
+        // Remove blank filler rows (one by one) until the invoice fits on a single A4 page.
+        // A4 printable area with 3mm margins = 204mm x 291mm.
+        function fitToSinglePage(element) {
+            const maxHeight = element.offsetWidth * (291 / 204) - 4; // small safety buffer
+            const emptyRows = Array.from(element.querySelectorAll('tr.empty-row'));
+            while (element.offsetHeight > maxHeight && emptyRows.length) {
+                emptyRows.pop().remove();
+            }
+        }
+
         function downloadPDF() {
             const element = document.querySelector('.professional-invoice');
             const btn = document.getElementById('btn-download-pdf');
+            fitToSinglePage(element);
             if (btn) {
                 btn.innerHTML = '⏳ Downloading PDF...';
                 btn.disabled = true;
@@ -737,9 +748,9 @@ header('Content-Type: text/html; charset=utf-8');
                             <div class="detail-row"><strong>IFSC:</strong> UTIB0005290</div>
                             <div class="detail-row"><strong>CITY:</strong> Kanpur, Uttar Pradesh </div>
                         </td>
-                        <td style="vertical-align: middle; text-align: center; width: 360px; border: none; padding: 0 0 0 8px;">
+                        <td style="vertical-align: middle; text-align: center; width: 230px; border: none; padding: 0 0 0 8px;">
                             <div style="display: inline-block; text-align: center;">
-                                <img src="bank-qr-code.png" alt="Scan to Pay QR Code" style="width: 380px; height: 380px; border: 1px solid #ddd; padding: 2px; background: #fff; border-radius: 3px; display: block; margin: 0 auto;">
+                                <img src="bank-qr-code.png" alt="Scan to Pay QR Code" style="width: 220px; height: 220px; border: 1px solid #ddd; padding: 2px; background: #fff; border-radius: 3px; display: block; margin: 0 auto;">
                                 <span style="font-size: 10px; font-weight: bold; color: #333; display: block; margin-top: 4px;">Scan to Pay</span>
                             </div>
                         </td>
