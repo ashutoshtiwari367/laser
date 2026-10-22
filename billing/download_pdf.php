@@ -248,7 +248,9 @@ header('Content-Type: text/html; charset=utf-8');
             text-align: center;
         }
         
-        .tax-summary-section, .amount-in-words-section, .terms-bank-section {
+        /* Only keep small blocks unbroken. The big bank/signature block is NOT forced
+           together any more, so it can't push a huge blank gap onto the previous page. */
+        .tax-summary-section, .amount-in-words-section, .bank-qr-block, .detail-row {
             page-break-inside: avoid;
             break-inside: avoid;
         }
@@ -432,20 +434,40 @@ header('Content-Type: text/html; charset=utf-8');
     <!-- Include html2pdf.js for client-side direct PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script>
-        // Remove blank filler rows (one by one) until the invoice fits on a single A4 page.
-        // A4 printable area with 3mm margins = 204mm x 291mm.
-        function fitToSinglePage(element) {
-            const maxHeight = element.offsetWidth * (291 / 204) - 4; // small safety buffer
+        const BASE_WIDTH_MM = 200;   // normal invoice width
+        const MAX_WIDTH_MM  = 260;   // widest layout allowed (= ~77% scale in PDF)
+        const PAGE_RATIO    = 291 / 204; // A4 printable area (3mm margins): height / width
+
+        function fitsOnePage(element) {
+            return element.offsetHeight <= element.offsetWidth * PAGE_RATIO - 4;
+        }
+
+        // Smart fit:
+        // 1) Remove blank filler rows one-by-one until it fits a single A4 page.
+        // 2) Still too tall? Widen the layout step-by-step. html2pdf scales the element
+        //    width to the A4 width, so a wider layout = slightly smaller content = fits 1 page.
+        // 3) Even at max shrink it doesn't fit (very long bill) -> normal width, multi-page.
+        function fitInvoice(element) {
+            element.style.width = BASE_WIDTH_MM + 'mm';
+
             const emptyRows = Array.from(element.querySelectorAll('tr.empty-row'));
-            while (element.offsetHeight > maxHeight && emptyRows.length) {
+            while (!fitsOnePage(element) && emptyRows.length) {
                 emptyRows.pop().remove();
             }
+            if (fitsOnePage(element)) return;
+
+            for (let w = BASE_WIDTH_MM + 5; w <= MAX_WIDTH_MM; w += 5) {
+                element.style.width = w + 'mm';
+                if (fitsOnePage(element)) return;
+            }
+
+            element.style.width = BASE_WIDTH_MM + 'mm';
         }
 
         function downloadPDF() {
             const element = document.querySelector('.professional-invoice');
             const btn = document.getElementById('btn-download-pdf');
-            fitToSinglePage(element);
+            fitInvoice(element);
             if (btn) {
                 btn.innerHTML = '⏳ Downloading PDF...';
                 btn.disabled = true;
@@ -455,12 +477,20 @@ header('Content-Type: text/html; charset=utf-8');
                 margin:       [3, 3, 3, 3],
                 filename:     'Invoice-<?php echo $bill['bill_no']; ?>.pdf',
                 image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, logging: false, scrollY: 0 },
+                html2canvas:  {
+                    scale: 2, useCORS: true, logging: false, scrollY: 0,
+                    windowWidth: Math.max(document.documentElement.clientWidth, element.scrollWidth + 40)
+                },
                 jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-                pagebreak:    { mode: ['css', 'legacy'] }
+                // Multi-page case: never cut a table row, QR or bank line in half,
+                // but let big sections flow so no large blank gap is left behind.
+                pagebreak:    { mode: ['css', 'legacy'], avoid: ['tr', '.bank-qr-block', '.detail-row', '.tax-summary-section', '.amount-in-words-section'] }
             };
 
+            const resetWidth = function() { element.style.width = BASE_WIDTH_MM + 'mm'; };
+
             html2pdf().set(opt).from(element).save().then(function() {
+                resetWidth();
                 if (btn) {
                     btn.innerHTML = '✅ PDF Downloaded!';
                     setTimeout(function() {
@@ -470,6 +500,7 @@ header('Content-Type: text/html; charset=utf-8');
                 }
             }).catch(function(err) {
                 console.error(err);
+                resetWidth();
                 if (btn) {
                     btn.innerHTML = '📥 Download PDF Again';
                     btn.disabled = false;
@@ -748,9 +779,9 @@ header('Content-Type: text/html; charset=utf-8');
                             <div class="detail-row"><strong>IFSC:</strong> UTIB0005290</div>
                             <div class="detail-row"><strong>CITY:</strong> Kanpur, Uttar Pradesh </div>
                         </td>
-                        <td style="vertical-align: middle; text-align: center; width: 230px; border: none; padding: 0 0 0 8px;">
-                            <div style="display: inline-block; text-align: center;">
-                                <img src="bank-qr-code.png" alt="Scan to Pay QR Code" style="width: 220px; height: 220px; border: 1px solid #ddd; padding: 2px; background: #fff; border-radius: 3px; display: block; margin: 0 auto;">
+                        <td style="vertical-align: middle; text-align: center; width: 200px; border: none; padding: 0 0 0 8px;">
+                            <div class="bank-qr-block" style="display: inline-block; text-align: center;">
+                                <img src="bank-qr-code.png" alt="Scan to Pay QR Code" style="width: 190px; height: 190px; border: 1px solid #ddd; padding: 2px; background: #fff; border-radius: 3px; display: block; margin: 0 auto;">
                                 <span style="font-size: 10px; font-weight: bold; color: #333; display: block; margin-top: 4px;">Scan to Pay</span>
                             </div>
                         </td>
